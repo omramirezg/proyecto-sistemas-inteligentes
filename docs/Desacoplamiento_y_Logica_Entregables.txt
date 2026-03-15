@@ -1,0 +1,43 @@
+
+### 📄 1. Principio de Desacoplamiento Lógico (Cero Código Quemado)
+
+Como buenas prácticas de ingeniería y para garantizar la escalabilidad del proceso, el sistema operará bajo una separación estricta entre la lógica de programación y los datos de configuración:
+
+* **Prohibición de "Hardcoding":** Ningún parámetro operativo (como límites `t_min`/`p_max`, números de celular o asignaciones de maquinaria) se escribirá de forma fija en el código fuente (Python o SQL).
+* **Única Fuente de Verdad:** Toda modificación en las reglas de negocio, fórmulas o turnos del personal se gestionará *exclusivamente* desde las tablas maestras (Archivos CSV en la Fase 1 o Datalake en una siguiente Fase).
+* **Lectura Dinámica:** El motor de reglas consultará las tablas en cada ciclo. De esta manera, al agregar nuevas máquinas, fórmulas o empleados, el sistema se actualizará automáticamente sin necesidad de modificar, detener o redesplegar el código.
+
+#### 2. Ciclo de Vida y Actualización de Datos
+
+El sistema maneja dos velocidades de procesamiento (Fast Data y Slow Data) para garantizar su estabilidad:
+
+* **Telemetría Transaccional (Fast Data):** Las tablas de `telemetria_planta_001` y `telemetria_planta_002` se actualizan automáticamente con una frecuencia de **1 minuto**. Representan el estado en vivo de los sensores (PLC).
+* **Gestión de Personal (Slow Data):** La tabla `maestro_personal.csv` se actualiza de forma manual **cada semana** para reflejar las rotaciones de turno y reasignación de máquinas.
+* **Restricciones de Calidad (Slow Data):** La tabla `maestro_formulas.csv` contiene las ventanas operativas (tolerancias) del proceso. Se actualiza manualmente para agregar o ajustar condiciones de nuevas fórmulas. *(Nota: El sistema está preparado para manejar excepciones, ya que no todas las fórmulas están estandarizadas, ej: 2130 o 2261 entre otras).*
+* **Capacidad Instalada (Slow Data):** La tabla `maestro_equipos.csv` contiene la configuración electromecánica base de cada peletizadora. Su actualización es estrictamente manual y solo ocurre ante adiciones o bajas de maquinaria en la planta.
+
+#### 3. Reglas de Despliegue de Entregables (Gestión de Alarmas)
+
+El envío de notificaciones está regulado por políticas antispam y estándares industriales:
+
+* **Reporte Consolidado (PDF):** Se programará el envío automático del resumen estadístico del proceso dos veces por semana: **Lunes a las 2:00 p.m.** y **Viernes a las 8:00 a.m.**
+* **Texto Estricto (Alarma Descriptiva):** Se rige bajo la lógica de **"Cambio de Estado"** y el estándar **ANSI/ISA-18.2**.
+* *Ejemplo de aplicación:* Si la máquina 303 de la Planta 001 registra una `presion_suavizada` por debajo del límite mínimo a la 1:05 p.m., se envía una única alarma de "Presión Baja". Si la falla persiste hasta la 1:19 p.m., el sistema permanecerá en silencio. A la 1:20 p.m., cuando la variable retorne a su banda normal, se enviará una notificación de "Proceso Estable".
+* *Regla de Saturación:* El sistema tiene restringido enviar más de 2 alarmas en una ventana de 10 minutos para el mismo equipo, evitando la fatiga de alarmas en el operario.
+
+
+* **Audio Prescriptivo (Recomendación IA):** Actúa como un complemento al texto estricto, nunca como reemplazo. Para que un usuario reciba el audio generado por el LLM, debe tener obligatoriamente activa la recepción de la alarma de "Texto Estricto" (`recibe_alertas = 1` y `recibe_prescriptivo = 1`). Esto garantiza que el personal siempre tenga el dato duro de la desviación para validar empíricamente la sugerencia de la IA y hacer caso omiso en caso de una posible alucinación durante la fase de estabilización del modelo.
+
+
+#### 4. Procesamiento Interno de Señales (Filtro de Ruido)
+
+A diferencia de los parámetros operativos que se extraen externamente, la limpieza matemática de la telemetría se ejecutará **internamente dentro del código fuente**. Las decisiones de alertamiento y "Cambio de Estado" no se tomarán sobre los datos crudos del PLC, sino sobre variables tratadas:
+
+* `corriente_suavizada` (Valida si la máquina está operando con carga real).
+* `temperatura_suavizada` (Evalúa los límites térmicos del acondicionador).
+* `presion_suavizada` (Evalúa las caídas o picos en la línea de vapor).
+
+**Justificación y Método Matemático:**
+* **Prevención de Falsos Positivos:** El suavizado tiene como objetivo principal eliminar el ruido transitorio (picos de milisegundos/segundos) de las señales físicas, evitando saturar al operario con alarmas irreales.
+* **Optimización Computacional:** Se utilizará una Media Móvil Exponencial (EMA) aproximada/truncada. Al evitar la recursividad estricta de la fórmula clásica del EMA, se optimiza drásticamente el rendimiento del código en memoria.
+* **Tolerancia de Pérdida:** Esta aproximación matemática sacrifica a lo sumo un 1% de la información de la señal original durante el tiempo que dura el proceso de una orden de producción. Este cambio es estadísticamente insignificante frente al beneficio de estabilidad y velocidad de procesamiento obtenido.

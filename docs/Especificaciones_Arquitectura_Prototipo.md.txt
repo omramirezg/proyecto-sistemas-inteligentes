@@ -1,0 +1,83 @@
+# Documento de Diseño de Sistema y Arquitectura (Prototipo a Producción)
+
+## 1. Visión General y Alcance
+
+El objetivo de este proyecto es construir un prototipo funcional de alertamiento y prescripción con IA para el proceso de peletización, fundamentado estrictamente en el principio de Desacoplamiento Lógico (separación de datos de configuración y código fuente ver "Desacoplamiento_y_Logica_Entregables.txt").
+
+Este sistema debe ser funcional, completamente escalable y "mudable" hacia un entorno de producción real, garantizando que el paso de la Fase 1 (Prototipo) a la Fase 2 (Producción) requiera el menor refactor de código posible. Para garantizar la captura oportuna de desviaciones, el sistema operará como un servicio de backend de ejecución continua (*Always-On*), evaluando la telemetría en tiempo real sin depender de interfaces gráficas.
+
+## 2. Principios de Modularidad e Inyección de Dependencias
+
+Para asegurar la escalabilidad, el código fuente utilizará una arquitectura modular y orientada a interfaces. Los servicios externos no estarán acoplados al núcleo del sistema:
+
+* **Módulo de Mensajería (Notificaciones):** El prototipo operará con la API de Telegram. El código debe permitir intercambiar este conector por la API de WhatsApp (Tulio/Meta) en producción mediante un simple cambio de clase o variable de entorno, sin alterar la lógica de generación de alertas.
+* **Módulo de Inteligencia Artificial (LLM):** La generación de prescripciones en texto será agnóstica al proveedor. Se debe estructurar para permitir la integración intercambiable de modelos (Grokq, Grok, OpenAI, Anthropic, etc.) según costos, latencia y rendimiento empírico.
+* **Módulo de Síntesis de Voz (TTS):** De manera explícita y obligatoria, la generación de los audios prescriptivos operará consumiendo la API de **ElevenLabs**. Esto garantiza el estándar industrial de baja latencia y alta naturalidad requeridos para que el operario escuche instrucciones claras en un entorno ruidoso.
+
+## 3. Buenas Prácticas y Estructura del Proyecto
+
+El proyecto adoptará estándares profesionales de la industria de software:
+
+* **Documentación General (`README.md`):** Explicará el propósito del proyecto, la guía de instalación de dependencias (`requirements.txt`) y las instrucciones exactas para su despliegue tanto en entornos Windows como Linux.
+* **Directorio Base (`/src`):** Todo el código ejecutable y la lógica de negocio vivirá dentro de esta carpeta estándar.
+* **Gestión de Secretos (`.env`):** Las API Keys (Telegram, WhatsApp, LLM, **ElevenLabs**), IPs de servidores y números de teléfono estarán estrictamente fuera del código. Se gestionarán mediante un archivo `.env` que jamás se subirá al control de versiones (repositorio).
+* **Gobernanza y Comportamiento:**
+* Se crearán archivos de configuración (ej. `politicas_empresa.yaml`, como falta por definir tu la debes proponer entendiendo la necesidad del proyecto) para definir la ética del sistema, los horarios de tolerancia y las restricciones físicas que la IA no puede violar.
+* Se establecerá un archivo dedicado (`agente_persona.yaml`) para definir el "System Prompt", el tono de comunicación directo y el rol técnico del Agente LLM.
+
+
+* **Generación de Entregables:** Existirá un directorio dedicado (`/docs/arquitectura_pdf.md` y `/src/pdf_generator`) con las instrucciones matemáticas y gráficas para la construcción automatizada del reporte estadístico (Entregable 3).
+
+## 4. Estructura de Carpetas (yo te propongo este borrador, tu la debes mejorar)
+
+```text
+/peletizacion_ia_core
+├── /config                 # Gestor de .env, políticas de empresa y prompt del agente
+├── /data                   # Archivos maestros (CSV) y telemetría simulada
+├── /docs                   # Documentación general y arquitectura de reportes
+├── /logs                   # Archivos de depuración (debugging)
+├── /src                    # Código fuente principal (Motor, LLM, Notificaciones)
+│   └── main.py             # Script principal (Worker) de ejecución perpetua 24/7
+├── /tests                  # Pruebas unitarias de módulos
+├── .env.example            # Plantilla segura de variables de entorno
+├── .gitignore              # Exclusión de archivos sensibles
+├── README.md               # Guía de despliegue principal
+└── requirements.txt        # Dependencias de Python
+
+```
+
+## 5. Decisiones de Diseño Aprobadas (Respuestas Estratégicas)
+
+Para garantizar un sistema robusto, se han definido las siguientes políticas de diseño frente a las dudas de arquitectura iniciales:
+
+### A. Arquitectura Headless (Sin Interfaz) y Ejecución Continua
+
+* **Eliminación de Frontend Web:** Se descarta el uso de herramientas gráficas como Streamlit. El sistema es puramente transaccional (backend); toda interacción con el usuario ocurrirá exclusivamente de manera bidireccional a través del chat (Telegram/WhatsApp).
+* **Servicio Permanente (Worker):** El código fuente no se ejecutará a demanda. Estará corriendo perpetuamente (un bucle continuo o demonio) leyendo los datos de los sensores minuto a minuto para reaccionar de forma autónoma.
+
+### B. Manejo de Memoria del Sistema
+
+* **Memoria de Estado Lógico (Sí):** Aprovechando la ejecución continua del script, el motor determinista contará con una memoria temporal (caché o diccionario en memoria viva) para rastrear el "Estado Actual" de cada máquina. Esto es obligatorio para evitar la fatiga de alarmas y cumplir la regla de saturación (máximo 2 alertas en 10 minutos).
+* **Memoria del Agente LLM (No - Stateless):** La IA no guardará memoria conversacional entre turnos. Cada alerta generará una inyección de contexto en blanco con la fotografía exacta del problema actual y los límites de la máquina, previniendo alucinaciones por arrastre de historial.
+
+### C. Trazabilidad: Logs vs. Historial
+
+* **Logs de Depuración (`app_debug.log`):** Se utilizarán exclusivamente para registrar errores de ejecución, excepciones de Python, caídas de red y respuestas HTTP fallidas de las APIs. Es de uso exclusivo para el equipo de desarrollo/mantenimiento.
+* **Historial de Notificaciones (Base de Datos/CSV Dedicado):** Es obligatorio crear un archivo estructurado (ej. `historial_alertas.csv`) que registre la hora, máquina, variable desviada y prescripción enviada. Este archivo será la fuente de verdad (Data Source) para que el módulo de estadísticas construya el PDF semanal.
+
+### D. Feedback Loop (Interacción Bidireccional)
+
+* **Comunicación Estructurada:** El usuario NO interactuará libremente por chat con la IA. La comunicación será bidireccional mediante botones de respuesta rápida (Inline Keyboards en Telegram/WhatsApp).
+* **Mecanismo de Retroalimentación:** Tras recibir una alerta descriptiva y el audio prescriptivo, el operario tendrá opciones fijas (Ej: `[✅ Útil y Aplicado]`, `[❌ Falso Positivo]`, `[🛠️ Falla Mecánica]`).
+* **Valor del Feedback:** Estas respuestas se guardarán en el Historial de Notificaciones y servirán para re-entrenar los filtros matemáticos de ruido y evaluar el nivel de acierto empírico del modelo LLM en producción.
+
+## 6. Elementos Pendientes por Definir (Delegados a la IA)
+
+Con el objetivo de mantener la flexibilidad del diseño y aprovechar las capacidades deductivas del modelo, los siguientes componentes quedan intencionalmente abiertos. **Es importante aclarar que la información actual se maneja a nivel de borrador y, a futuro, estos elementos se adaptarán y afinarán estrictamente según las necesidades operativas de cada nuevo proyecto o planta.**
+
+Sin embargo, dado que necesitamos un prototipo base 100% funcional desde el día uno, se delegará a la Inteligencia Artificial la tarea de proponer, estructurar y completar estos elementos preliminares, basándose en su comprensión integral de esta arquitectura y el principio de desacoplamiento lógico:
+
+* **Estructura y Contenido del Reporte Estadístico (PDF):** La IA deberá proponer qué métricas, gráficos (ej. distribución de fallas, OEE, cumplimiento de calidad predictiva) y resúmenes ejecutivos aportan mayor valor a los supervisores de planta (Entregable 3) basándose en las variables disponibles en la telemetría y las tablas maestras.
+* **Políticas Empresariales y Ética (Guardarraíles):** La IA deberá redactar las reglas de seguridad operativas y restricciones físicas que el sistema debe respetar estrictamente para evitar sugerencias que pongan en riesgo la integridad mecánica de las peletizadoras o el estándar de calidad del producto.
+* **Personalidad y "Cerebro" del Agente:** La IA deberá diseñar su propio *System Prompt*, definiendo su rol técnico ideal, el tono de comunicación (que debe ser directo y aséptico) y la estructura exacta que tendrán sus respuestas prescritas en audio.
+* **Matriz de Toma de Decisiones (Features):** La IA definirá qué contexto técnico y variables derivadas (por ejemplo, el porcentaje de carga del motor, tolerancias de la fórmula o tiempos de retención) necesita que el motor determinista de Python le inyecte en cada alerta para poder generar prescripciones lógicas, mecánicamente viables y libres de alucinaciones.

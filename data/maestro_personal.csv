@@ -1,0 +1,13 @@
+id_empleado,nombre_completo,id_planta,rol,id_maquina_asignada,dias_laborales,hora_inicio_turno,hora_fin_turno,numero_celular,recibe_alertas,recibe_prescriptivo,recibe_pdf
+EMP-001,Brayan Brix,001,Supervisor,TODAS,"1,2,3,4,5,6,7",06:00:00,18:00:00,+573128886810,1,0,1
+EMP-002,Daniela Gatita,001,Operario,301,"1,2,3,4,5,6,7",06:00:00,14:00:00,+573186166140,1,1,0
+EMP-003,Omar Torneo,002,Supervisor,TODAS,"1,2,3,4,5,6,7",08:00:00,17:00:00,+573502156786,1,0,1
+EMP-004,Laura Star,002,Operario,302,"1,2,3,4,5,6,7",14:00:00,22:00:00,+573127395560,1,1,0
+EMP-005,Juan Ficticio,001,Operario,302,"1,2,3,4,5,6,7",14:00:00,22:00:00,+573128886810,1,1,0
+EMP-006,Maria Inventada,001,Operario,303,"1,2,3,4,5,6,7",22:00:00,06:00:00,+573186166140,1,1,0
+EMP-007,Andres Mantenimiento,002,Mantenimiento,301,"1,2,3,4,5,6,7",06:00:00,18:00:00,+573502156786,1,0,1
+EMP-008,Camilo Prueba,002,Operario,303,"1,2,3,4,5,6,7",06:00:00,14:00:00,+573127395560,1,1,0
+EMP-009,Sofia Tecnologa,001,Mantenimiento,TODAS,"1,2,3,4,5,6,7",22:00:00,06:00:00,+573128886810,1,0,1
+EMP-010,Pedro Pellets,002,Operario,302,"1,2,3,4,5,6,7",06:00:00,14:00:00,+573186166140,1,1,0
+EMP-011,Luisa Vapor,001,Operario,301,"1,2,3,4,5,6,7",14:00:00,22:00:00,+573502156786,1,1,0
+EMP-012,Carlos Calidad,002,Supervisor,303,"1,2,3,4,5,6,7",08:00:00,17:00:00,+573127395560,1,1,1

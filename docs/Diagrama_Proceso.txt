@@ -1,0 +1,59 @@
+flowchart TD
+    %% Estilos
+    classDef database fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    classDef python fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef llm fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px;
+    classDef output fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    classDef phase fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray: 5 5;
+
+    %% Ingesta de Datos (Fase 1 vs Fase 2)
+    subgraph OrigenDatos ["1. Origen de Datos (Lectura Continua)"]
+        CSV[("Archivos CSV locales")] -.-> |"Fase 1: Prototipo"| MotorReglas
+        Snowflake[("Datalake Snowflake")] -.-> |"Fase 2: Producción"| MotorReglas
+    end
+    class CSV,Snowflake database;
+
+    %% Motor Determinista (Hecho por ti / Python)
+    subgraph CapaDeterminista ["2. Motor Lógico Determinista (Python Worker 24/7)"]
+        MotorReglas["Evaluación P, T, Humedad<br>Reglas Duras sin IA"]
+        GeneradorEstadisticas["Módulo de Estadísticas<br>Estructurado por ti"]
+    end
+    class MotorReglas,GeneradorEstadisticas python;
+
+    %% Capa de IA (Solo Prescripción)
+    subgraph CapaIA ["3. Capa de IA Prescriptiva"]
+        FiltroAudio{"¿Aplica para Audio<br>Prescriptivo?"}
+        PromptBuilder["Contexto Técnico<br>Prompting"]
+        LLM["LLM - Agente Experto"]
+        TTS(("Text-to-Speech<br>API ElevenLabs"))
+        
+        FiltroAudio -- Sí --> PromptBuilder --> LLM --> TTS
+    end
+    class FiltroAudio,PromptBuilder,LLM,TTS llm;
+
+    %% Empaquetado de Entregables
+    MotorReglas --> |"Entregable 1"| AlertaTexto["TEXTO ESTRICTO<br>Ej: Alerta OP 123 - Temp baja"]
+    TTS --> |"Entregable 2"| AlertaAudio["AUDIO IA<br>Recomendación de Ajuste"]
+    GeneradorEstadisticas --> |"Entregable 3"| ReporteEstadistico["ARCHIVO PDF/CSV<br>Resumen del Proceso"]
+
+    %% Capa de Despliegue y Salida
+    subgraph Despliegue ["4. Despliegue Backend (Headless / Sin GUI)"]
+        direction TB
+        subgraph Fase1 ["Fase 1: Prototipo Funcional"]
+            WorkerLocal["Script Local (main.py)<br>Ejecución Continua"]
+            BotTelegram((("Bot de Telegram<br>Libre y sin restricciones")))
+        end
+        
+        subgraph Fase2 ["Fase 2: Modo Productivo"]
+            WorkerProd["Contenedor/Servicio Cloud<br>Always-On"]
+            WebhookWA[["API Tulio / WhatsApp<br>Modo Empresarial"]]
+        end
+    end
+    class Fase1,Fase2 phase;
+
+    AlertaTexto --> WorkerLocal & WorkerProd
+    AlertaAudio --> WorkerLocal & WorkerProd
+    ReporteEstadistico --> WorkerLocal & WorkerProd
+
+    WorkerLocal --> BotTelegram
+    WorkerProd --> WebhookWA

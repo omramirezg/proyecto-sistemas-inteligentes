@@ -1,0 +1,2015 @@
+﻿python : 2026-03-09 
+21:59:49 | INFO     | 
+config_loader | 
+Sistema de logging 
+configurado. Archivo: 
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\lo
+gs\app_debug.log
+At line:1 char:1
++ python -X utf8 
+src/main.py > 
+log_temp.txt 2>&1
++ ~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo    
+          : NotSpeci  
+  fied: (2026-03-09   
+  21:5...s\app_deb    
+ug.log:String) []    
+, RemoteException
+    + FullyQualifiedE 
+   rrorId : NativeCo  
+  mmandError
+ 
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+======================
+======================
+================
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+INICIANDO SISTEMA DE 
+ALERTAMIENTO IA ÔÇö 
+PELETIZACI├ôN
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+======================
+======================
+================
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | 
+DataLoader 
+inicializado. 
+Directorio de datos: C
+:\Users\USUARIO\Deskto
+p\Maestria\sistemasint
+eligentes\proyecto\dat
+a
+2026-03-09 21:59:49 | 
+INFO     | 
+motor_reglas | Motor 
+de reglas 
+inicializado: 
+alpha=0.30, 
+max_alertas=2, 
+ventana=10 min
+2026-03-09 21:59:49 | 
+INFO     | 
+llm_multimodal | 
+GeminiProvider 
+configurado: modelo=ge
+mini-2.0-flash, 
+location=us-central1
+2026-03-09 21:59:49 | 
+INFO     | 
+tts_service | 
+GoogleTTSProvider 
+configurado: 
+idioma=es-US, 
+voz=es-US-Neural2-A
+2026-03-09 21:59:49 | 
+INFO     | 
+telegram_bot | 
+TelegramNotificador 
+inicializado. 4 
+usuarios registrados.
+2026-03-09 21:59:49 | 
+INFO     | 
+historial_alertas | 
+Historial existente 
+cargado: C:\Users\USUA
+RIO\Desktop\Maestria\s
+istemasinteligentes\pr
+oyecto\data\historial_
+alertas.csv (├║ltimo 
+ID: 2)
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Cargando datos 
+iniciales...
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | Maestro 
+equipos cargado: 10 
+registros desde C:\Use
+rs\USUARIO\Desktop\Mae
+stria\sistemasintelige
+ntes\proyecto\data\mae
+stro_equipos.csv
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | Maestro 
+f├│rmulas cargado: 12 
+registros desde C:\Use
+rs\USUARIO\Desktop\Mae
+stria\sistemasintelige
+ntes\proyecto\data\mae
+stro_formulas.csv
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | Maestro 
+personal cargado: 12 
+registros desde C:\Use
+rs\USUARIO\Desktop\Mae
+stria\sistemasintelige
+ntes\proyecto\data\mae
+stro_personal.csv
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | Todas 
+las tablas maestras 
+cargadas 
+correctamente.
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | 
+Telemetr├¡a planta 
+001: fechas 
+regeneradas cada 1 
+min desde 2026-03-09 
+21:59:49
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | 
+Telemetr├¡a planta 
+001 cargada: 4776 
+registros (2026-03-09 
+21:59:49.619548 ÔÇö 
+2026-03-13 
+05:34:49.619548)
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Planta 001: 4776 
+registros de 
+telemetr├¡a cargados.
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | 
+Telemetr├¡a planta 
+002: fechas 
+regeneradas cada 1 
+min desde 2026-03-09 
+21:59:49
+2026-03-09 21:59:49 | 
+INFO     | 
+data_loader | 
+Telemetr├¡a planta 
+002 cargada: 3930 
+registros (2026-03-09 
+21:59:49.643801 ÔÇö 
+2026-03-12 
+15:28:49.643801)
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Planta 002: 3930 
+registros de 
+telemetr├¡a cargados.
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Inicializaci├│n 
+completa. Plantas 
+disponibles: ['001', 
+'002']
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Worker iniciado. 
+Intervalo: 5 segundos.
+2026-03-09 21:59:49 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 001_301 | 
+presion_vapor: NORMAL 
+ÔåÆ BAJA | Valor 
+suavizado: 6.76 | 
+L├¡mites: [8.0, 25.0]
+2026-03-09 21:59:49 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: ÔÜá´©Å 
+ALERTA PRESION_BAJA | 
+Planta 001 | M├íq 301 
+| F├│rmula 3360 (ZB1) 
+| presion_vapor: 6.76 
+(l├¡mite: 8.0) | 
+Carga: 62%
+2026-03-09 21:59:49 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 001_301 | 
+temp_acond: NORMAL 
+ÔåÆ BAJA | Valor 
+suavizado: 52.61 | 
+L├¡mites: [80.0, 
+280.0]
+2026-03-09 21:59:49 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: ÔÜá´©Å 
+ALERTA 
+TEMPERATURA_BAJA | 
+Planta 001 | M├íq 301 
+| F├│rmula 3360 (ZB1) 
+| temp_acond: 52.61 
+(l├¡mite: 80.0) | 
+Carga: 62%
+2026-03-09 21:59:49 | 
+INFO     | __main__ | 
+Procesando alerta: 
+ÔÜá´©Å ALERTA 
+PRESION_BAJA | Planta 
+001 | M├íq 301 | 
+F├│rmula 3360 (ZB1) | 
+presion_vapor: 6.76 
+(l├¡mite: 8.0) | 
+Carga: 62%
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:185: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.tight_layout()
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:189: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.savefig(buffer, 
+format='png', 
+bbox_inches='tight')
+2026-03-09 21:59:49 | 
+INFO     | 
+generador_graficas | 
+Gr├ífica generada 
+para presion_vapor | 
+M├íq 001-301 | 51.3 KB
+C:\Users\USUARIO\AppDa
+ta\Local\Programs\Pyth
+on\Python311\Lib\site-
+packages\vertexai\gene
+rative_models\_generat
+ive_models.py:433: 
+UserWarning: This 
+feature is deprecated 
+as of June 24, 2025 
+and will be removed 
+on June 24, 2026. For 
+details, see https://c
+loud.google.com/vertex
+-ai/generative-ai/docs
+/deprecations/genai-ve
+rtexai-sdk.
+  warning_logs.show_de
+precation_warning()
+2026-03-09 21:59:52 | 
+INFO     | 
+llm_multimodal | 
+Modelo Gemini 
+inicializado 
+correctamente.
+2026-03-09 21:59:52 | 
+INFO     | 
+config_loader | 
+Configuraci├│n YAML 
+cargada: 
+agente_persona.yaml
+2026-03-09 21:59:52 | 
+INFO     | 
+config_loader | 
+Configuraci├│n YAML 
+cargada: 
+politicas_empresa.yaml
+2026-03-09 21:59:52 | 
+INFO     | 
+llm_multimodal | 
+Enviando prompt 
+MULTIMODAL a Gemini 
+(texto + imagen)
+2026-03-09 21:59:54 | 
+INFO     | 
+llm_multimodal | 
+Prescripci├│n 
+generada por Gemini 
+(184 caracteres)
+2026-03-09 21:59:55 | 
+INFO     | 
+tts_service | Cliente 
+de Google Cloud TTS 
+inicializado.
+2026-03-09 21:59:56 | 
+INFO     | 
+tts_service | Audio 
+generado por Google 
+TTS: 114432 bytes 
+(111.8 KB) | Texto: 
+184 caracteres
+2026-03-09 21:59:56 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=3: PRESION_BAJA en 
+m├íquina 001-301
+2026-03-09 21:59:57 | 
+INFO     | httpx | 
+HTTP Request: POST htt
+ps://api.telegram.org/
+bot7832181362:AAFj4AB7
+VROAU_-tR9CTqdZiNRLyAq
+n4foI/sendMessage 
+"HTTP/1.1 200 OK"
+2026-03-09 21:59:57 | 
+INFO     | 
+telegram_bot | Alerta 
+texto enviada: 
+chat_id=7286226424, 
+alerta_id=3
+2026-03-09 21:59:59 | 
+INFO     | httpx | 
+HTTP Request: POST htt
+ps://api.telegram.org/
+bot7832181362:AAFj4AB7
+VROAU_-tR9CTqdZiNRLyAq
+n4foI/sendVoice 
+"HTTP/1.1 200 OK"
+2026-03-09 21:59:59 | 
+INFO     | 
+telegram_bot | Audio 
+prescriptivo enviado: 
+chat_id=7286226424, 
+111.8 KB
+2026-03-09 21:59:59 | 
+INFO     | __main__ | 
+Procesando alerta: 
+ÔÜá´©Å ALERTA 
+TEMPERATURA_BAJA | 
+Planta 001 | M├íq 301 
+| F├│rmula 3360 (ZB1) 
+| temp_acond: 52.61 
+(l├¡mite: 80.0) | 
+Carga: 62%
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:185: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.tight_layout()
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:189: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.savefig(buffer, 
+format='png', 
+bbox_inches='tight')
+2026-03-09 21:59:59 | 
+INFO     | 
+generador_graficas | 
+Gr├ífica generada 
+para temp_acond | 
+M├íq 001-301 | 60.0 KB
+2026-03-09 21:59:59 | 
+INFO     | 
+llm_multimodal | 
+Enviando prompt 
+MULTIMODAL a Gemini 
+(texto + imagen)
+2026-03-09 22:00:01 | 
+INFO     | 
+llm_multimodal | 
+Prescripci├│n 
+generada por Gemini 
+(231 caracteres)
+2026-03-09 22:00:01 | 
+INFO     | 
+tts_service | Audio 
+generado por Google 
+TTS: 109056 bytes 
+(106.5 KB) | Texto: 
+231 caracteres
+2026-03-09 22:00:01 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=4: 
+TEMPERATURA_BAJA en 
+m├íquina 001-301
+2026-03-09 22:00:02 | 
+INFO     | httpx | 
+HTTP Request: POST htt
+ps://api.telegram.org/
+bot7832181362:AAFj4AB7
+VROAU_-tR9CTqdZiNRLyAq
+n4foI/sendMessage 
+"HTTP/1.1 200 OK"
+2026-03-09 22:00:02 | 
+INFO     | 
+telegram_bot | Alerta 
+texto enviada: 
+chat_id=7286226424, 
+alerta_id=4
+2026-03-09 22:00:47 | 
+INFO     | __main__ | 
+Ciclo 10: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:00:47 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:00:47 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.set
+_index('id_formula').t
+o_dict('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:01:02 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 002_304 | 
+temp_acond: NORMAL 
+ÔåÆ BAJA | Valor 
+suavizado: 69.35 | 
+L├¡mites: [70.0, 
+270.0]
+2026-03-09 22:01:02 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: ÔÜá´©Å 
+ALERTA 
+TEMPERATURA_BAJA | 
+Planta 002 | M├íq 304 
+| F├│rmula 3346 (YA2) 
+| temp_acond: 69.35 
+(l├¡mite: 70.0) | 
+Carga: 185%
+2026-03-09 22:01:02 | 
+INFO     | __main__ | 
+Procesando alerta: 
+ÔÜá´©Å ALERTA 
+TEMPERATURA_BAJA | 
+Planta 002 | M├íq 304 
+| F├│rmula 3346 (YA2) 
+| temp_acond: 69.35 
+(l├¡mite: 70.0) | 
+Carga: 185%
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:185: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.tight_layout()
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:189: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.savefig(buffer, 
+format='png', 
+bbox_inches='tight')
+2026-03-09 22:01:02 | 
+INFO     | 
+generador_graficas | 
+Gr├ífica generada 
+para temp_acond | 
+M├íq 002-304 | 63.1 KB
+2026-03-09 22:01:02 | 
+INFO     | 
+llm_multimodal | 
+Enviando prompt 
+MULTIMODAL a Gemini 
+(texto + imagen)
+2026-03-09 22:01:04 | 
+INFO     | 
+llm_multimodal | 
+Prescripci├│n 
+generada por Gemini 
+(246 caracteres)
+2026-03-09 22:01:05 | 
+INFO     | 
+tts_service | Audio 
+generado por Google 
+TTS: 134976 bytes 
+(131.8 KB) | Texto: 
+246 caracteres
+2026-03-09 22:01:05 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=5: 
+TEMPERATURA_BAJA en 
+m├íquina 002-304
+2026-03-09 22:01:35 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 002_304 | 
+temp_acond: BAJA ÔåÆ 
+NORMAL | Valor 
+suavizado: 70.18 | 
+L├¡mites: [70.0, 
+270.0]
+2026-03-09 22:01:35 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: Ô£à PROCESO 
+ESTABLE | Planta 002 
+| M├íq 304 | 
+temp_acond retorn├│ a 
+banda normal (70.0 - 
+270.0)
+2026-03-09 22:01:35 | 
+INFO     | __main__ | 
+Procesando alerta: 
+Ô£à PROCESO ESTABLE | 
+Planta 002 | M├íq 304 
+| temp_acond retorn├│ 
+a banda normal (70.0 
+- 270.0)
+2026-03-09 22:01:35 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=6: RETORNO_NORMAL_T
+EMPERATURA en 
+m├íquina 002-304
+2026-03-09 22:01:40 | 
+INFO     | __main__ | 
+Ciclo 20: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:01:40 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:01:40 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.dro
+p_duplicates(subset=['
+id_formula']).set_inde
+x('id_formula').to_dic
+t('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:02:30 | 
+INFO     | __main__ | 
+Ciclo 30: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:02:30 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:02:30 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.dro
+p_duplicates(subset=['
+id_formula']).set_inde
+x('id_formula').to_dic
+t('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:03:20 | 
+INFO     | __main__ | 
+Ciclo 40: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:03:20 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:03:20 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.dro
+p_duplicates(subset=['
+id_formula']).set_inde
+x('id_formula').to_dic
+t('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:04:10 | 
+INFO     | __main__ | 
+Ciclo 50: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:04:10 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:04:10 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.dro
+p_duplicates(subset=['
+id_formula']).set_inde
+x('id_formula').to_dic
+t('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:04:10 | 
+INFO     | __main__ | 
+Ciclo 50 completado 
+en 0.01 seg. Alertas 
+este ciclo: 0
+2026-03-09 22:05:00 | 
+INFO     | __main__ | 
+Ciclo 60: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:05:00 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:05:00 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:05:50 | 
+INFO     | __main__ | 
+Ciclo 70: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:05:50 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:05:50 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:06:40 | 
+INFO     | __main__ | 
+Ciclo 80: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:06:40 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:06:40 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:07:30 | 
+INFO     | __main__ | 
+Ciclo 90: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:07:30 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:07:30 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:08:20 | 
+INFO     | __main__ | 
+Ciclo 100: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:08:20 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:08:20 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:08:20 | 
+INFO     | __main__ | 
+Ciclo 100 completado 
+en 0.02 seg. Alertas 
+este ciclo: 0
+2026-03-09 22:08:30 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 001_304 | 
+temp_acond: NORMAL 
+ÔåÆ BAJA | Valor 
+suavizado: 64.27 | 
+L├¡mites: [70.0, 
+270.0]
+2026-03-09 22:08:30 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: ÔÜá´©Å 
+ALERTA 
+TEMPERATURA_BAJA | 
+Planta 001 | M├íq 304 
+| F├│rmula 2140 (XB1) 
+| temp_acond: 64.27 
+(l├¡mite: 70.0) | 
+Carga: 70%
+2026-03-09 22:08:30 | 
+INFO     | __main__ | 
+Procesando alerta: 
+ÔÜá´©Å ALERTA 
+TEMPERATURA_BAJA | 
+Planta 001 | M├íq 304 
+| F├│rmula 2140 (XB1) 
+| temp_acond: 64.27 
+(l├¡mite: 70.0) | 
+Carga: 70%
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:185: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.tight_layout()
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:189: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.savefig(buffer, 
+format='png', 
+bbox_inches='tight')
+2026-03-09 22:08:30 | 
+INFO     | 
+generador_graficas | 
+Gr├ífica generada 
+para temp_acond | 
+M├íq 001-304 | 61.3 KB
+2026-03-09 22:08:30 | 
+INFO     | 
+llm_multimodal | 
+Enviando prompt 
+MULTIMODAL a Gemini 
+(texto + imagen)
+2026-03-09 22:08:32 | 
+INFO     | 
+llm_multimodal | 
+Prescripci├│n 
+generada por Gemini 
+(182 caracteres)
+2026-03-09 22:08:33 | 
+INFO     | 
+tts_service | Audio 
+generado por Google 
+TTS: 86016 bytes 
+(84.0 KB) | Texto: 
+182 caracteres
+2026-03-09 22:08:33 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=7: 
+TEMPERATURA_BAJA en 
+m├íquina 001-304
+2026-03-09 22:08:33 | 
+ERROR    | 
+telegram_bot | Error 
+enviando alerta texto 
+a chat_id=7286226424: 
+Unknown error in HTTP 
+implementation: 
+RuntimeError('Event 
+loop is closed')
+2026-03-09 22:09:13 | 
+INFO     | __main__ | 
+Ciclo 110: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:09:13 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:09:13 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:09:38 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 001_304 | 
+temp_acond: BAJA ÔåÆ 
+NORMAL | Valor 
+suavizado: 70.40 | 
+L├¡mites: [70.0, 
+270.0]
+2026-03-09 22:09:38 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: Ô£à PROCESO 
+ESTABLE | Planta 001 
+| M├íq 304 | 
+temp_acond retorn├│ a 
+banda normal (70.0 - 
+270.0)
+2026-03-09 22:09:39 | 
+INFO     | __main__ | 
+Procesando alerta: 
+Ô£à PROCESO ESTABLE | 
+Planta 001 | M├íq 304 
+| temp_acond retorn├│ 
+a banda normal (70.0 
+- 270.0)
+2026-03-09 22:09:39 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=8: RETORNO_NORMAL_T
+EMPERATURA en 
+m├íquina 001-304
+2026-03-09 22:09:39 | 
+INFO     | httpx | 
+HTTP Request: POST htt
+ps://api.telegram.org/
+bot7832181362:AAFj4AB7
+VROAU_-tR9CTqdZiNRLyAq
+n4foI/sendMessage 
+"HTTP/1.1 200 OK"
+2026-03-09 22:09:39 | 
+INFO     | 
+telegram_bot | Alerta 
+texto enviada: 
+chat_id=7286226424, 
+alerta_id=8
+2026-03-09 22:10:04 | 
+INFO     | __main__ | 
+Ciclo 120: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:10:04 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:10:04 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:10:54 | 
+INFO     | __main__ | 
+Ciclo 130: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:10:54 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:10:54 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.
+2026-03-09 22:10:59 | 
+INFO     | 
+motor_reglas | CAMBIO 
+DE ESTADO | 002_303 | 
+presion_vapor: NORMAL 
+ÔåÆ ALTA | Valor 
+suavizado: 64.95 | 
+L├¡mites: [15.0, 45.0]
+2026-03-09 22:10:59 | 
+INFO     | 
+motor_reglas | ALERTA 
+GENERADA: ÔÜá´©Å 
+ALERTA PRESION_ALTA | 
+Planta 002 | M├íq 303 
+| F├│rmula 3346 (YA2) 
+| presion_vapor: 
+64.95 (l├¡mite: 45.0) 
+| Carga: 85%
+2026-03-09 22:10:59 | 
+INFO     | __main__ | 
+Procesando alerta: 
+ÔÜá´©Å ALERTA 
+PRESION_ALTA | Planta 
+002 | M├íq 303 | 
+F├│rmula 3346 (YA2) | 
+presion_vapor: 64.95 
+(l├¡mite: 45.0) | 
+Carga: 85%
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:185: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.tight_layout()
+C:\Users\USUARIO\Deskt
+op\Maestria\sistemasin
+teligentes\proyecto\sr
+c\generador_graficas.p
+y:189: UserWarning: 
+Glyph 127981 
+(\N{FACTORY}) missing 
+from font(s) DejaVu 
+Sans.
+  fig.savefig(buffer, 
+format='png', 
+bbox_inches='tight')
+2026-03-09 22:10:59 | 
+INFO     | 
+generador_graficas | 
+Gr├ífica generada 
+para presion_vapor | 
+M├íq 002-303 | 54.0 KB
+2026-03-09 22:10:59 | 
+INFO     | 
+llm_multimodal | 
+Enviando prompt 
+MULTIMODAL a Gemini 
+(texto + imagen)
+2026-03-09 22:11:02 | 
+INFO     | 
+llm_multimodal | 
+Prescripci├│n 
+generada por Gemini 
+(200 caracteres)
+2026-03-09 22:11:03 | 
+INFO     | 
+tts_service | Audio 
+generado por Google 
+TTS: 112128 bytes 
+(109.5 KB) | Texto: 
+200 caracteres
+2026-03-09 22:11:03 | 
+INFO     | 
+historial_alertas | 
+Alerta registrada 
+ID=9: PRESION_ALTA en 
+m├íquina 002-303
+2026-03-09 22:11:48 | 
+INFO     | __main__ | 
+Ciclo 140: Generando 
+reporte PDF en tiempo 
+real...
+2026-03-09 22:11:48 | 
+INFO     | 
+generador_pdf | 
+Iniciando generaci├│n 
+de PDF anal├¡tico en 
+tiempo real...
+2026-03-09 22:11:48 | 
+ERROR    | __main__ | 
+Error 
+generando/enviando 
+reporte PDF: 
+DataFrame index must 
+be unique for 
+orient='index'.
+Traceback (most 
+recent call last):
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\main.py", 
+line 187, in ejecutar
+    pdf_bytes = self.p
+df_gen.generar_reporte
+_tiempo_real(
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 106, in ge
+nerar_reporte_tiempo_r
+eal
+    df_fatiga = self._
+calcular_fatiga(df_ope
+rativo, data_loader)
+                ^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\Desktop\Maestria\si
+stemasinteligentes\pro
+yecto\src\generador_pd
+f.py", line 163, in 
+_calcular_fatiga
+    formulas_dict = da
+ta_loader.formulas.res
+et_index(drop=True).dr
+op_duplicates(subset=[
+'id_formula']).set_ind
+ex('id_formula').to_di
+ct('index')
+                    ^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\frame.py", 
+line 2236, in to_dict
+    return 
+to_dict(self, orient, 
+into=into, 
+index=index)
+           ^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^
+  File "C:\Users\USUAR
+IO\AppData\Local\Progr
+ams\Python\Python311\L
+ib\site-packages\panda
+s\core\methods\to_dict
+.py", line 259, in 
+to_dict
+    raise 
+ValueError("DataFrame 
+index must be unique 
+for orient='index'.")
+ValueError: DataFrame 
+index must be unique 
+for orient='index'.

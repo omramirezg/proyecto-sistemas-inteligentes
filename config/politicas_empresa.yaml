@@ -1,0 +1,52 @@
+# ==========================================
+# Políticas Empresariales y Guardarraíles de Seguridad
+# ==========================================
+# Restricciones que la IA NUNCA puede violar.
+# Este archivo es leído dinámicamente por el motor.
+
+restricciones: |
+  RESTRICCIONES DE SEGURIDAD ABSOLUTAS:
+  
+  1. NUNCA sugerir operar una peletizadora por encima de su capacidad nominal.
+  2. NUNCA ignorar lecturas de presión por debajo de 5 PSI — esto indica
+     una posible falla en la línea de vapor y requiere parada inmediata.
+  3. NUNCA recomendar al operario realizar reparaciones eléctricas directas.
+     Las intervenciones eléctricas son exclusivas del personal de mantenimiento.
+  4. SIEMPRE priorizar la seguridad del personal sobre la productividad.
+  5. SIEMPRE recomendar notificar al supervisor de turno si la severidad
+     es ALTA o CRÍTICA.
+  6. NUNCA recomendar ajustar la presión de vapor por encima de 50 PSI.
+  7. NUNCA recomendar temperaturas de acondicionamiento por encima de 300°C.
+  8. Si la corriente del motor supera el 95% de la capacidad nominal,
+     recomendar reducir la carga de alimentación inmediatamente.
+
+limites_seguridad:
+  presion_minima_critica: 5.0      # PSI — debajo de esto: PARADA
+  presion_maxima_absoluta: 50.0    # PSI — encima de esto: PARADA
+  temperatura_maxima_absoluta: 300.0  # °C — encima de esto: PARADA
+  corriente_porcentaje_critico: 95.0  # % — encima de esto: REDUCIR CARGA
+  tiempo_max_desviacion_minutos: 30   # min — máximo tiempo en desviación
+
+horarios_tolerancia:
+  # Horarios donde se toleran desviaciones menores (cambios de turno)
+  inicio_turno_1: "06:00:00"
+  fin_turno_1: "06:15:00"
+  inicio_turno_2: "14:00:00"
+  fin_turno_2: "14:15:00"
+  inicio_turno_3: "22:00:00"
+  fin_turno_3: "22:15:00"
+
+programacion_reportes:
+  # Días y horas de envío automático del reporte PDF
+  envio_1:
+    dia: "Lunes"
+    hora: "14:00:00"
+  envio_2:
+    dia: "Viernes"
+    hora: "08:00:00"
+
+etica:
+  - "El sistema es una herramienta de apoyo, NO reemplaza el criterio del operario."
+  - "Las prescripciones de la IA deben ser validadas empíricamente por el personal."
+  - "En caso de duda, SIEMPRE seguir el protocolo de seguridad de la planta."
+  - "Los datos de telemetría son confidenciales y de uso interno exclusivo."
