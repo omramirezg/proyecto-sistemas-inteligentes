@@ -9,6 +9,7 @@ en cada ciclo de forma dinámica, sin valores quemados en código.
 """
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -333,8 +334,6 @@ class DataLoader:
         """
         if self.personal is None:
             self.cargar_maestro_personal()
-
-        from datetime import datetime
 
         planta = id_planta.strip().zfill(3)
         maquina = id_maquina.strip().zfill(3)

@@ -16,6 +16,7 @@ from fpdf import FPDF
 from config_loader import ConfigLoader
 from data_loader import DataLoader
 from historial_alertas import HistorialAlertas
+from memoria_incidentes import MemoriaIncidentes
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +65,7 @@ class GeneradorPDF:
         df_telemetria: pd.DataFrame,
         data_loader: DataLoader,
         historial_alertas: Optional[HistorialAlertas] = None,
+        memoria_incidentes: Optional[MemoriaIncidentes] = None,
     ) -> bytes:
         """Genera el reporte completo en bytes."""
         logger.info("Generando PDF compacto...")
@@ -78,11 +80,23 @@ class GeneradorPDF:
             if historial_alertas is not None
             else pd.DataFrame()
         )
+        stats_incidentes = (
+            memoria_incidentes.obtener_estadisticas()
+            if memoria_incidentes is not None
+            else {
+                'total_incidentes': 0,
+                'incidentes_abiertos': 0,
+                'incidentes_cerrados': 0,
+                'tiempo_promedio_resolucion_min': 0.0,
+                'fichas_generadas': 0,
+                'correos_enviados': 0,
+            }
+        )
 
-        self._pagina_resumen(pdf, df_operativo, df_historial)
+        self._pagina_resumen(pdf, df_operativo, df_historial, stats_incidentes)
         self._pagina_tendencias(pdf, df_operativo)
         self._pagina_alarmas(pdf, df_fatiga, df_historial)
-        self._pagina_gerencial(pdf, df_operativo, data_loader, df_historial)
+        self._pagina_gerencial(pdf, df_operativo, data_loader, df_historial, stats_incidentes)
 
         pdf_bytes = pdf.output()
         logger.info("PDF compacto generado: %.1f KB", len(pdf_bytes) / 1024)
@@ -217,7 +231,13 @@ class GeneradorPDF:
                 pdf.cell(width, 6, cell, border=1, align='C')
             pdf.ln()
 
-    def _pagina_resumen(self, pdf: ReportePDF, df_operativo: pd.DataFrame, df_historial: pd.DataFrame) -> None:
+    def _pagina_resumen(
+        self,
+        pdf: ReportePDF,
+        df_operativo: pd.DataFrame,
+        df_historial: pd.DataFrame,
+        stats_incidentes: dict,
+    ) -> None:
         pdf.add_page()
         self._section_title(
             pdf,
@@ -259,6 +279,7 @@ class GeneradorPDF:
             f'La estabilidad global fue de {estabilidad}%.\n'
             f'La energia acumulada del periodo fue de {energia} kW.\n'
             f'Alertas utiles confirmadas por operacion: {utiles:.1f}%.\n'
+            f'Incidentes cerrados: {int(stats_incidentes.get("incidentes_cerrados", 0))}.\n'
             f'Ver detalle de alarmas y ruido en pagina 3.'
         )
         pdf.set_xy(12, 76)
@@ -400,7 +421,14 @@ class GeneradorPDF:
                 [48, 28],
             )
 
-    def _pagina_gerencial(self, pdf: ReportePDF, df_operativo: pd.DataFrame, data_loader: DataLoader, df_historial: pd.DataFrame) -> None:
+    def _pagina_gerencial(
+        self,
+        pdf: ReportePDF,
+        df_operativo: pd.DataFrame,
+        data_loader: DataLoader,
+        df_historial: pd.DataFrame,
+        stats_incidentes: dict,
+    ) -> None:
         pdf.add_page()
         self._section_title(
             pdf,
@@ -456,6 +484,11 @@ class GeneradorPDF:
             f'Porcentaje medio de retorno fuera de especificacion: {retorno_pct}%.',
             f'Alertas utiles confirmadas por operacion: {utiles:.1f}%.',
             f'Falsos positivos reportados: {falsos:.1f}% | Casos de mantenimiento: {mtto:.1f}%.',
+            (
+                f'Incidentes totales: {int(stats_incidentes.get("total_incidentes", 0))} | '
+                f'Cerrados: {int(stats_incidentes.get("incidentes_cerrados", 0))} | '
+                f'Tiempo promedio de resolucion: {float(stats_incidentes.get("tiempo_promedio_resolucion_min", 0.0)):.1f} min.'
+            ),
             'La dispersion termica y de presion permite ver estabilidad general de la ventana.',
         ]
         if formulas_huerfanas:

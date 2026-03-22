@@ -2,10 +2,12 @@
 Pipeline minimo de Telegram para validar texto, imagen y audio.
 """
 
+import json
 import sys
 import signal
 import asyncio
 import logging
+import threading
 import time
 import html
 from datetime import datetime
@@ -24,9 +26,16 @@ from tts_service import GoogleTTSProvider
 from telegram_bot import TelegramNotificador
 from generador_pdf import GeneradorPDF
 from historial_alertas import HistorialAlertas
+from historial_operario import HistorialOperario
 from dashboard_ejecutivo import DashboardEjecutivo
 from imagen_generativa import NanoBananaProvider
 from llm_multimodal import GeminiProvider
+from herramientas_agente import HerramientasAgente
+from feedback_loop import FeedbackLoop
+from shadow_tester import ShadowTester
+from generador_video_telemetria import GeneradorVideoTelemetria
+from email_service import EmailService
+from memoria_incidentes import MemoriaIncidentes
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +54,22 @@ class WorkerPeletizacion:
         self.telegram = TelegramNotificador(self.config)
         self.pdf_gen = GeneradorPDF(self.config)
         self.historial = HistorialAlertas(self.config)
+        self.historial_operario = HistorialOperario(self.config)
         self.dashboard = DashboardEjecutivo(self.config)
         self.nano_banana = NanoBananaProvider(self.config)
         self.llm = GeminiProvider(self.config)
+        self.feedback_loop = FeedbackLoop(data_dir=self.config.data_dir)
+        self.herramientas = HerramientasAgente(
+            data_dir=self.config.data_dir,
+            data_loader=self.data_loader,
+            config=self.config,
+            feedback_loop=self.feedback_loop,
+        )
+        self.shadow_tester    = ShadowTester(self.llm, self.config)
+        self.generador_video  = GeneradorVideoTelemetria(ventana_lecturas=30, n_frames=10)
+        self._ciclos_sin_deriva = 0   # Contador para chequeo periódico de deriva
+        self.email_service = EmailService(self.config)
+        self.memoria_incidentes = MemoriaIncidentes(self.config)
 
         self._ejecutando = True
         self._planta_objetivo = '001'
@@ -58,6 +80,15 @@ class WorkerPeletizacion:
         self._ventana_historial = 8
         self._ultima_lectura_publicada: Optional[dict[str, Any]] = None
         self._ultimo_panel_bytes: Optional[bytes] = None
+        self._chats_pausados_operacion: dict[int, dict[str, Any]] = {}
+        self._incidentes_chat: dict[int, dict[str, Any]] = {}
+
+        # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
+        import queue as _queue_mod
+        self._mensajes_pubsub: _queue_mod.Queue = _queue_mod.Queue()
+        # Set de message_ids ya procesados — garantiza idempotencia (at-least-once delivery)
+        self._ids_procesados: set = set()
+        self._subscriber_streaming = None   # Handle del streaming pull activo
 
         signal.signal(signal.SIGINT, self._manejar_shutdown)
         signal.signal(signal.SIGTERM, self._manejar_shutdown)
@@ -76,25 +107,151 @@ class WorkerPeletizacion:
         logger.info("Telemetria cargada: %d registros.", len(self._telemetria))
 
     def ejecutar(self) -> None:
+        """
+        Punto de entrada del worker. Despacha al modo correcto según config:
+            PUBSUB_HABILITADO=1 → modo evento (Pub/Sub, latencia ms)
+            PUBSUB_HABILITADO=0 → modo polling (CSV cada N segundos)
+        """
+        if self.config.pubsub_habilitado:
+            logger.info("Modo PUB/SUB habilitado — latencia de eventos en tiempo real.")
+            self.ejecutar_con_pubsub()
+            return
+
         logger.info(
-            "Worker minimo iniciado. Intervalo: %d segundos.",
+            "Modo POLLING iniciado. Intervalo: %d segundos.",
             self.config.intervalo_simulacion,
         )
+        siguiente_lectura_ts = time.time()
 
         while self._ejecutando:
             try:
-                lectura = self._obtener_siguiente_lectura()
-                if lectura is not None:
-                    asyncio.run(self._enviar_paquete_minimo(lectura))
                 asyncio.run(self._procesar_eventos_chat())
+                asyncio.run(self._drenar_escalaciones_agente())
+                ahora = time.time()
+                if self._flujo_telemetria_bloqueado():
+                    continue
+                if ahora >= siguiente_lectura_ts:
+                    lectura = self._obtener_siguiente_lectura()
+                    if lectura is not None:
+                        asyncio.run(self._enviar_paquete_minimo(lectura))
+                    siguiente_lectura_ts = ahora + self.config.intervalo_simulacion
+                    # Detección de deriva cada 100 ciclos (~8 min con intervalo 5s)
+                    self._ciclos_sin_deriva += 1
+                    if self._ciclos_sin_deriva >= 100:
+                        self._ciclos_sin_deriva = 0
+                        self._verificar_deriva_umbrales()
             except Exception as e:
                 logger.error("Error en worker minimo: %s", e, exc_info=True)
 
-            time.sleep(self.config.intervalo_simulacion)
+            time.sleep(1)
 
         logger.info("Worker minimo detenido tras %d lecturas.", self._lecturas_procesadas)
 
+    def _enriquecer_lectura_raw(self, datos: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """
+        Enriquece una lectura cruda de sensores con datos maestros, EMA y motor de reglas.
+
+        Acepta un dict con los valores crudos del sensor (proveniente del CSV o de un
+        mensaje Pub/Sub) y retorna el dict completo listo para _enviar_paquete_minimo.
+        Este método es el núcleo compartido entre el modo polling y el modo Pub/Sub.
+
+        Args:
+            datos: Dict con campos del sensor: id_maquina, id_formula, timestamp_sensor,
+                   corriente, temp_acond, presion_vapor, y los demás campos del CSV.
+        """
+        id_maquina = str(datos.get('id_maquina', '')).strip().zfill(3)
+        id_formula = str(datos.get('id_formula', '')).strip()
+
+        limites = self.data_loader.obtener_limites_formula(self._planta_objetivo, id_formula)
+        specs   = self.data_loader.obtener_specs_equipo(self._planta_objetivo, id_maquina)
+        if limites is None or specs is None:
+            logger.warning("Lectura omitida: datos maestros faltantes para maquina=%s formula=%s", id_maquina, id_formula)
+            return None
+
+        # Normalizar timestamp — puede venir como str (Pub/Sub) o datetime (CSV)
+        timestamp_raw = datos.get('timestamp_sensor') or datos.get('fecha_registro')
+        if isinstance(timestamp_raw, datetime):
+            timestamp = timestamp_raw
+        else:
+            timestamp = pd.Timestamp(str(timestamp_raw)).to_pydatetime()
+
+        corriente     = float(datos.get('corriente', 0))
+        temp_acond    = float(datos.get('temp_acond', 0))
+        presion_vapor = float(datos.get('presion_vapor', 0))
+
+        alertas_motor = self.motor.evaluar_lectura(
+            id_planta=self._planta_objetivo,
+            id_maquina=id_maquina,
+            id_formula=id_formula,
+            codigo_producto=str(limites.get('codigo_producto', '')),
+            corriente=corriente,
+            temp_acond=temp_acond,
+            presion_vapor=presion_vapor,
+            timestamp=timestamp,
+            corriente_carga_minima=float(specs['corriente_carga_minima']),
+            capacidad_nominal=float(specs['capacidad_nominal']),
+            t_min=float(limites['t_min']),
+            t_max=float(limites['t_max']),
+            p_min=float(limites['p_min']),
+            p_max=float(limites['p_max']),
+        )
+
+        clave  = f"{self._planta_objetivo}_{id_maquina}"
+        estado = self.motor._estados.get(clave)
+
+        if clave not in self._historial_reciente:
+            self._historial_reciente[clave] = []
+        self._historial_reciente[clave].append({
+            'timestamp':    timestamp,
+            'temp_acond':   temp_acond,
+            'presion_vapor': presion_vapor,
+            'corriente':    corriente,
+            'temp_ema':     estado.ema_temperatura if estado and estado.ema_temperatura is not None else temp_acond,
+            'presion_ema':  estado.ema_presion     if estado and estado.ema_presion     is not None else presion_vapor,
+            'corriente_ema': estado.ema_corriente  if estado and estado.ema_corriente   is not None else corriente,
+        })
+        if len(self._historial_reciente[clave]) > self._ventana_historial:
+            self._historial_reciente[clave] = self._historial_reciente[clave][-self._ventana_historial:]
+
+        self._lecturas_procesadas += 1
+
+        # Determinar la variable principal en alerta (para few-shot y shadow logging)
+        variable_principal = ""
+        for alerta in alertas_motor:
+            nombre = str(alerta.get('nombre', '') or alerta.get('tipo', '')).upper()
+            if 'TEMP' in nombre:
+                variable_principal = "temp_acond"
+                break
+            elif 'PRES' in nombre:
+                variable_principal = "presion_vapor"
+                break
+            elif 'CORR' in nombre or 'CARGA' in nombre:
+                variable_principal = "corriente"
+                break
+
+        return {
+            'numero':            self._lecturas_procesadas,
+            'timestamp':         timestamp,
+            'id_planta':         self._planta_objetivo,
+            'id_maquina':        id_maquina,
+            'id_formula':        id_formula,
+            'numero_orden':      str(datos.get('numero_orden', '')),
+            'codigo_producto':   str(limites.get('codigo_producto', '')),
+            'variable_principal': variable_principal,
+            'temp_ema':          estado.ema_temperatura if estado and estado.ema_temperatura is not None else temp_acond,
+            'presion_ema':       estado.ema_presion     if estado and estado.ema_presion     is not None else presion_vapor,
+            'corriente_ema':     estado.ema_corriente   if estado and estado.ema_corriente   is not None else corriente,
+            't_min':             float(limites['t_min']),
+            't_max':             float(limites['t_max']),
+            'p_min':             float(limites['p_min']),
+            'p_max':             float(limites['p_max']),
+            'capacidad_nominal': float(specs['capacidad_nominal']),
+            'historial_reciente': list(self._historial_reciente[clave]),
+            'alertas_confirmadas': alertas_motor,
+        }
+
     def _obtener_siguiente_lectura(self) -> Optional[dict[str, Any]]:
+        """Modo polling: obtiene la siguiente fila del CSV y la enriquece."""
         if self._telemetria is None or self._telemetria.empty:
             logger.warning("No hay telemetria disponible.")
             return None
@@ -106,74 +263,31 @@ class WorkerPeletizacion:
         fila = self._telemetria.iloc[self._indice_actual]
         self._indice_actual += 1
 
-        id_maquina = str(fila['id_maquina']).strip().zfill(3)
-        id_formula = str(fila['id_formula']).strip()
-        limites = self.data_loader.obtener_limites_formula(self._planta_objetivo, id_formula)
-        specs = self.data_loader.obtener_specs_equipo(self._planta_objetivo, id_maquina)
-        if limites is None or specs is None:
-            logger.warning("Lectura omitida por datos maestros faltantes.")
-            return None
-
-        timestamp = fila['fecha_registro']
-        if not isinstance(timestamp, datetime):
-            timestamp = pd.Timestamp(timestamp).to_pydatetime()
-
-        alertas_motor = self.motor.evaluar_lectura(
-            id_planta=self._planta_objetivo,
-            id_maquina=id_maquina,
-            id_formula=id_formula,
-            codigo_producto=str(limites.get('codigo_producto', '')),
-            corriente=float(fila['corriente']),
-            temp_acond=float(fila['temp_acond']),
-            presion_vapor=float(fila['presion_vapor']),
-            timestamp=timestamp,
-            corriente_carga_minima=float(specs['corriente_carga_minima']),
-            capacidad_nominal=float(specs['capacidad_nominal']),
-            t_min=float(limites['t_min']),
-            t_max=float(limites['t_max']),
-            p_min=float(limites['p_min']),
-            p_max=float(limites['p_max']),
-        )
-
-        clave = f"{self._planta_objetivo}_{id_maquina}"
-        estado = self.motor._estados.get(clave)
-        if clave not in self._historial_reciente:
-            self._historial_reciente[clave] = []
-        self._historial_reciente[clave].append({
-            'timestamp': timestamp,
-            'temp_acond': float(fila['temp_acond']),
-            'presion_vapor': float(fila['presion_vapor']),
-            'corriente': float(fila['corriente']),
-            'temp_ema': estado.ema_temperatura if estado and estado.ema_temperatura is not None else float(fila['temp_acond']),
-            'presion_ema': estado.ema_presion if estado and estado.ema_presion is not None else float(fila['presion_vapor']),
-            'corriente_ema': estado.ema_corriente if estado and estado.ema_corriente is not None else float(fila['corriente']),
-        })
-        if len(self._historial_reciente[clave]) > self._ventana_historial:
-            self._historial_reciente[clave] = self._historial_reciente[clave][-self._ventana_historial:]
-        self._lecturas_procesadas += 1
-
-        return {
-            'numero': self._lecturas_procesadas,
-            'timestamp': timestamp,
-            'id_planta': self._planta_objetivo,
-            'id_maquina': id_maquina,
-            'id_formula': id_formula,
-            'codigo_producto': str(limites.get('codigo_producto', '')),
-            'temp_ema': estado.ema_temperatura if estado and estado.ema_temperatura is not None else float(fila['temp_acond']),
-            'presion_ema': estado.ema_presion if estado and estado.ema_presion is not None else float(fila['presion_vapor']),
-            'corriente_ema': estado.ema_corriente if estado and estado.ema_corriente is not None else float(fila['corriente']),
-            't_min': float(limites['t_min']),
-            't_max': float(limites['t_max']),
-            'p_min': float(limites['p_min']),
-            'p_max': float(limites['p_max']),
-            'capacidad_nominal': float(specs['capacidad_nominal']),
-            'historial_reciente': list(self._historial_reciente[clave]),
-            'alertas_confirmadas': alertas_motor,
+        # Convertir la fila a dict normalizado y delegar al enriquecedor
+        datos_raw = {
+            'id_maquina':      fila['id_maquina'],
+            'id_formula':      fila['id_formula'],
+            'timestamp_sensor': fila['fecha_registro'],
+            'corriente':       fila['corriente'],
+            'temp_acond':      fila['temp_acond'],
+            'presion_vapor':   fila['presion_vapor'],
+            'vapor':           fila.get('vapor', 0),
+            'porcentaje_vapor': fila.get('porcentaje_vapor', 0),
+            'tiempo_proceso':  fila.get('tiempo_proceso', 0),
+            'retornando':      fila.get('retornando', 0),
+            'humedad_real':    fila.get('humedad_real', 0),
+            'durabilidad_real': fila.get('durabilidad_real', 0),
+            'kw_h_proceso':    fila.get('kw_h_proceso', 0),
         }
+        return self._enriquecer_lectura_raw(datos_raw)
 
     async def _enviar_paquete_minimo(self, lectura: dict[str, Any]) -> None:
-        chats = self._obtener_chats_destino(lectura['id_maquina'])
-        if not chats:
+        # Alimentar el buffer del video en cada lectura (no solo en alertas)
+        # para que el GIF siempre tenga contexto temporal actualizado.
+        self.generador_video.agregar_lectura(lectura)
+
+        destinatarios = self._obtener_destinatarios(lectura['id_maquina'])
+        if not destinatarios:
             logger.warning("No hay chats destino configurados.")
             return
 
@@ -233,6 +347,15 @@ class WorkerPeletizacion:
             tendencia_pres=tendencia_pres['mensaje'],
             pronostico=pronostico['mensaje'],
         )
+        predictor_incidente = self._calcular_predictor_incidente(
+            id_maquina=lectura['id_maquina'],
+            causa_probable=causa_probable,
+            severidad=severidad,
+            pronostico_nivel=pronostico['nivel'],
+            estado_temperatura=estado_temperatura,
+            estado_presion=estado_presion,
+            porcentaje_carga=porcentaje_carga,
+        )
         alerta_id_feedback = self._registrar_alertas_confirmadas(
             lectura=lectura,
             diagnostico_operativo=diagnostico_operativo,
@@ -242,23 +365,23 @@ class WorkerPeletizacion:
         )
         resumen_alerta = self._resumir_alertas_confirmadas(lectura['alertas_confirmadas'])
 
-        texto = (
-            f"<b>Paquete Multimodal | Lectura {lectura['numero']}</b>\n"
-            f"Planta {lectura['id_planta']} | Maquina {lectura['id_maquina']} | "
-            f"Formula {lectura['id_formula']} ({lectura['codigo_producto']})\n"
-            f"Estado global: <b>{estado_global}</b> | Severidad: <b>{severidad}</b>\n"
-            f"Indice de salud: <b>{indice_salud}/100</b> | Nivel: <b>{etiqueta_salud}</b>\n"
-            f"Temperatura EMA: <b>{lectura['temp_ema']:.2f} C</b> | Estado: <b>{estado_temperatura}</b>\n"
-            f"Presion EMA: <b>{lectura['presion_ema']:.2f} PSI</b> | Estado: <b>{estado_presion}</b>\n"
-            f"Corriente EMA: <b>{lectura['corriente_ema']:.2f} A</b> | Carga: <b>{porcentaje_carga:.1f}%</b>\n"
-            f"<b>Tendencia:</b> Temp {tendencia_temp['mensaje']} | Presion {tendencia_pres['mensaje']}\n"
-            f"<b>Pronostico a 5 min:</b> {pronostico['mensaje']} | Nivel: <b>{pronostico['nivel']}</b>\n"
-            f"<b>Causa probable:</b> {causa_probable}\n"
-            f"Ventana visual: ultimas {len(lectura['historial_reciente'])} mediciones\n"
-            f"<b>Criterio operativo:</b> {diagnostico_operativo}"
+        texto_operario = self._construir_mensaje_operario(
+            lectura=lectura,
+            estado_global=estado_global,
+            severidad=severidad,
+            indice_salud=indice_salud,
+            etiqueta_salud=etiqueta_salud,
+            estado_temperatura=estado_temperatura,
+            estado_presion=estado_presion,
+            porcentaje_carga=porcentaje_carga,
+            tendencia_temp=tendencia_temp['mensaje'],
+            tendencia_pres=tendencia_pres['mensaje'],
+            pronostico=pronostico['mensaje'],
+            pronostico_nivel=pronostico['nivel'],
+            causa_probable=causa_probable,
         )
         if resumen_alerta:
-            texto += f"\n<b>Alarma confirmada:</b> {resumen_alerta}"
+            texto_operario += f"\n<b>Alarma:</b> {resumen_alerta}"
 
         imagen_bytes = self.graficas.generar_panel_multimodal_telegram(
             datos_recientes=pd.DataFrame(lectura['historial_reciente']),
@@ -287,6 +410,16 @@ class WorkerPeletizacion:
             etiqueta_salud=etiqueta_salud,
         )
 
+        # Generar GIF animado de la serie temporal (Feature 8).
+        # Solo si hay suficientes datos en el buffer (mínimo 10 lecturas).
+        video_bytes: Optional[bytes] = None
+        if self.generador_video.hay_suficientes_datos():
+            video_bytes = self.generador_video.generar_gif(
+                titulo=f"Máquina {lectura['id_maquina']} | Últimas 30 lecturas"
+            )
+
+        # Prescripción IA con loop agentico, few-shot y video temporal.
+        # El shadow_tester decide si usar variante A, B o ambas (según config).
         prescripcion_maria = self._generar_prescripcion_maria(
             lectura=lectura,
             estado_global=estado_global,
@@ -301,11 +434,24 @@ class WorkerPeletizacion:
             causa_probable=causa_probable,
             diagnostico_operativo=diagnostico_operativo,
             imagen_bytes=imagen_bytes,
+            video_bytes=video_bytes,
         )
-        texto += f"\n<b>Maria:</b> {html.escape(prescripcion_maria)}"
-
-        audio_texto = prescripcion_maria
-        audio_bytes = self.tts.sintetizar(audio_texto)
+        texto_operario += "\n<i>Si necesitas apoyo, enviame una nota de voz.</i>"
+        texto_gerencial = self._construir_mensaje_gerencial(
+            lectura=lectura,
+            estado_global=estado_global,
+            severidad=severidad,
+            indice_salud=indice_salud,
+            etiqueta_salud=etiqueta_salud,
+            estado_temperatura=estado_temperatura,
+            estado_presion=estado_presion,
+            porcentaje_carga=porcentaje_carga,
+            pronostico=pronostico['mensaje'],
+            pronostico_nivel=pronostico['nivel'],
+            causa_probable=causa_probable,
+            prescripcion_maria=prescripcion_maria,
+            resumen_alerta=resumen_alerta,
+        )
 
         self.dashboard.actualizar_dashboard(
             lectura=lectura,
@@ -323,6 +469,8 @@ class WorkerPeletizacion:
             causa_probable=causa_probable,
             alertas_confirmadas=lectura['alertas_confirmadas'],
             estadisticas_feedback=self.historial.obtener_estadisticas(),
+            estadisticas_incidentes=self.memoria_incidentes.obtener_estadisticas(),
+            predictor_incidente=predictor_incidente,
         )
         self._ultima_lectura_publicada = {
             **lectura,
@@ -339,24 +487,299 @@ class WorkerPeletizacion:
             'pronostico_nivel': pronostico['nivel'],
             'causa_probable': causa_probable,
             'prescripcion_maria': prescripcion_maria,
+            'predictor_incidente': predictor_incidente,
         }
         self._ultimo_panel_bytes = imagen_bytes
 
-        for chat_id in chats:
+        for destinatario in destinatarios:
+            chat_id = int(destinatario['chat_id'])
+            audiencia = str(destinatario['audiencia'])
+            if audiencia == 'operario' and self._chat_pausado(chat_id):
+                logger.info(
+                    "Envio omitido para chat_id=%d por pausa operativa activa.",
+                    chat_id,
+                )
+                continue
+            texto = texto_operario if audiencia == 'operario' else texto_gerencial
             await self.telegram.enviar_mensaje_con_boton_pdf(
                 chat_id,
                 texto,
                 alerta_id=alerta_id_feedback,
+                audiencia=audiencia,
             )
             await asyncio.sleep(1)
             await self.telegram.enviar_imagen(chat_id, imagen_bytes, caption="Panel multimodal de proceso")
             await asyncio.sleep(1)
-            await self.telegram.enviar_audio(chat_id, audio_bytes)
-            await asyncio.sleep(1)
+
+    # -----------------------------------------------------------------------
+    # Modo Pub/Sub
+    # -----------------------------------------------------------------------
+
+    def _callback_pubsub(self, message) -> None:
+        """
+        Callback invocado por el subscriber de Pub/Sub en un hilo separado.
+        No procesa el mensaje aquí — lo encola para el loop async principal.
+        Hace ACK inmediato para no bloquear el canal de Pub/Sub.
+
+        Garantía de idempotencia: si el mismo message_id ya fue procesado
+        (at-least-once delivery de Pub/Sub), se descarta silenciosamente.
+        """
+        try:
+            datos = json.loads(message.data.decode("utf-8"))
+            message_id = datos.get("message_id", message.message_id)
+
+            if message_id in self._ids_procesados:
+                logger.debug("[PUBSUB] Mensaje duplicado descartado: %s", message_id)
+                message.ack()
+                return
+
+            self._ids_procesados.add(message_id)
+            # Limpiar el set periódicamente para no crecer indefinidamente
+            if len(self._ids_procesados) > 10_000:
+                self._ids_procesados.clear()
+
+            self._mensajes_pubsub.put(datos)
+            message.ack()
+            logger.debug(
+                "[PUBSUB] Mensaje encolado: máquina=%s T=%.1f°C P=%.2f PSI",
+                datos.get("id_maquina", "?"),
+                datos.get("temp_acond", 0),
+                datos.get("presion_vapor", 0),
+            )
+        except Exception as e:
+            logger.error("[PUBSUB] Error en callback: %s", e)
+            message.nack()
+
+    def _iniciar_subscriber_pubsub(self) -> None:
+        """
+        Inicia el streaming pull del subscriber de Pub/Sub.
+        Corre en background — el callback encola mensajes para el loop principal.
+        """
+        try:
+            from google.cloud import pubsub_v1
+
+            subscriber = pubsub_v1.SubscriberClient()
+            subscription_path = subscriber.subscription_path(
+                self.config.gcp_project,
+                self.config.pubsub_subscription,
+            )
+
+            # Crear suscripción si no existe
+            try:
+                from google.cloud.pubsub_v1.types import pubsub as pubsub_types
+                topic_path = f"projects/{self.config.gcp_project}/topics/{self.config.pubsub_topic}"
+                subscriber.create_subscription(
+                    request={"name": subscription_path, "topic": topic_path}
+                )
+                logger.info("[PUBSUB] Suscripción creada: %s", subscription_path)
+            except Exception as e:
+                if "AlreadyExists" in str(e) or "409" in str(e):
+                    logger.debug("[PUBSUB] Suscripción ya existe: %s", subscription_path)
+                else:
+                    logger.warning("[PUBSUB] No se pudo crear suscripción: %s", e)
+
+            self._subscriber_streaming = subscriber.subscribe(
+                subscription_path,
+                callback=self._callback_pubsub,
+            )
+            logger.info(
+                "[PUBSUB] Subscriber iniciado. Escuchando en: %s",
+                subscription_path,
+            )
+        except Exception as e:
+            logger.error("[PUBSUB] Error iniciando subscriber: %s", e)
+            raise
+
+    def _drenar_cola_pubsub(self) -> None:
+        """
+        Drena todos los mensajes encolados por el callback de Pub/Sub
+        y los procesa sincrónicamente en el loop principal.
+        Llamado en cada ciclo del loop para mantener baja latencia.
+        """
+        import queue as _q
+        procesados = 0
+        while True:
+            try:
+                datos_raw = self._mensajes_pubsub.get_nowait()
+            except _q.Empty:
+                break
+
+            lectura = self._enriquecer_lectura_raw(datos_raw)
+            if lectura is not None:
+                asyncio.run(self._enviar_paquete_minimo(lectura))
+                procesados += 1
+
+        if procesados:
+            logger.info("[PUBSUB] %d lecturas procesadas en este ciclo.", procesados)
+
+    def ejecutar_con_pubsub(self) -> None:
+        """
+        Modo Pub/Sub: el worker escucha mensajes en tiempo real en lugar de
+        hacer polling del CSV cada N segundos.
+
+        Flujo:
+            1. Inicia el publisher en un hilo daemon (simula sensores).
+            2. Inicia el subscriber en streaming pull (background).
+            3. Loop principal drena la cola y procesa mensajes.
+            4. El loop sigue atendiendo chat y escalaciones como siempre.
+
+        Ventaja sobre polling:
+            - Latencia de milisegundos en lugar de segundos.
+            - Garantía de entrega (at-least-once) con idempotencia.
+            - Publisher y subscriber completamente desacoplados.
+        """
+        from publisher_telemetria import PublisherTelemetria
+
+        logger.info(
+            "Worker iniciado en modo PUB/SUB. Topic: %s | Subscription: %s",
+            self.config.pubsub_topic,
+            self.config.pubsub_subscription,
+        )
+
+        # Iniciar publisher en hilo daemon (simula sensores de la planta)
+        publisher = PublisherTelemetria(self.config)
+        hilo_publisher = threading.Thread(
+            target=publisher.publicar_en_loop,
+            daemon=True,
+            name="publisher-telemetria",
+        )
+        hilo_publisher.start()
+        logger.info("[PUBSUB] Publisher iniciado en hilo daemon.")
+
+        # Iniciar subscriber (streaming pull en background)
+        self._iniciar_subscriber_pubsub()
+
+        try:
+            while self._ejecutando:
+                try:
+                    asyncio.run(self._procesar_eventos_chat())
+                    asyncio.run(self._drenar_escalaciones_agente())
+                    self._drenar_cola_pubsub()
+
+                    # Detección de deriva periódica
+                    self._ciclos_sin_deriva += 1
+                    if self._ciclos_sin_deriva >= 100:
+                        self._ciclos_sin_deriva = 0
+                        self._verificar_deriva_umbrales()
+
+                except Exception as e:
+                    logger.error("[PUBSUB] Error en ciclo: %s", e, exc_info=True)
+
+                time.sleep(0.2)   # 200ms — mucho más reactivo que el 1s del polling
+
+        finally:
+            if self._subscriber_streaming:
+                self._subscriber_streaming.cancel()
+                logger.info("[PUBSUB] Subscriber detenido.")
+            publisher.detener()
+            logger.info("[PUBSUB] Publisher detenido.")
+
+    def _verificar_deriva_umbrales(self) -> None:
+        """
+        Corre detección de deriva de umbrales cada 100 ciclos del worker.
+        Si detecta tasa de falsos positivos > 30% en algún par (máquina, variable),
+        lo registra como warning para que el equipo de ingeniería lo revise.
+        En producción, este punto puede disparar un correo automático al supervisor.
+        """
+        try:
+            derivas = self.feedback_loop.detectar_deriva_umbrales(ventana_dias=14)
+            if derivas:
+                for d in derivas:
+                    logger.warning(
+                        "[RLHF] DERIVA DE UMBRAL — Máquina: %s | Variable: %s | "
+                        "Falsos: %d%% (%d/%d alertas) | %s",
+                        d["id_maquina"],
+                        d["variable"],
+                        int(d["tasa_falsos_positivos"] * 100),
+                        d["falsos"],
+                        d["alertas_evaluadas"],
+                        d["recomendacion"],
+                    )
+        except Exception as e:
+            logger.error("[RLHF] Error en verificación de deriva: %s", e)
+
+    async def _drenar_escalaciones_agente(self) -> None:
+        """
+        Drena la cola de escalaciones generadas por el agente IA durante su
+        loop de razonamiento. Envía cada escalación al supervisor por Telegram.
+        Se llama en cada ciclo del worker para garantizar latencia mínima.
+        """
+        import queue as _queue
+        while True:
+            try:
+                escalacion = self.herramientas.cola_escalaciones.get_nowait()
+            except _queue.Empty:
+                break
+
+            severidad = escalacion.get("severidad", "ALTA")
+            id_maquina = escalacion.get("id_maquina", "?")
+            mensaje = escalacion.get("mensaje", "")
+            timestamp = escalacion.get("timestamp", "")
+
+            texto = (
+                f"🚨 <b>ESCALACIÓN AGENTE IA — Severidad {severidad}</b>\n"
+                f"Máquina: <code>{id_maquina}</code>\n"
+                f"Hora: {timestamp[:19]}\n\n"
+                f"{mensaje}"
+            )
+
+            # Notificar a todos los supervisores con Telegram
+            try:
+                await self.telegram.notificar_supervisores(texto)
+                logger.warning(
+                    "Escalación de agente enviada a supervisores — Máquina: %s | Severidad: %s",
+                    id_maquina, severidad,
+                )
+            except Exception as e:
+                logger.error("Error enviando escalación de agente: %s", e)
 
     async def _procesar_eventos_chat(self) -> None:
         """Atiende solicitudes de PDF y feedback hechas desde Telegram."""
         eventos = await self.telegram.obtener_eventos_chat()
+        for evento_audio in eventos['audio_operario']:
+            await self._procesar_audio_operario(evento_audio)
+            await asyncio.sleep(1)
+
+        for chat_id, estado in eventos['resolver_operacion']:
+            if estado == 'SI':
+                incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
+                if incidente_id:
+                    self.memoria_incidentes.registrar_evento(
+                        id_incidente=incidente_id,
+                        tipo_evento='confirmacion_solucion',
+                        descripcion='El operario confirmo por boton que la novedad fue solucionada.',
+                    )
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    "Cierre confirmado. Generando ficha de incidente con IA antes de reanudar el monitoreo.",
+                )
+                cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+                if cierre_ok:
+                    self._reanudar_chat_operario(chat_id)
+                    await self.telegram.enviar_mensaje_simple(
+                        chat_id,
+                        "Monitoreo automatico reanudado. La ficha de cierre ya fue enviada.",
+                    )
+                else:
+                    await self.telegram.enviar_mensaje_simple(
+                        chat_id,
+                        "La ficha de cierre no pudo generarse todavia. Mantengo el sistema en espera.",
+                    )
+            else:
+                incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
+                if incidente_id:
+                    self.memoria_incidentes.registrar_evento(
+                        id_incidente=incidente_id,
+                        tipo_evento='continua_falla',
+                        descripcion='El operario indico por boton que la falla continua.',
+                    )
+                self._pausar_chat_operario(chat_id, motivo='continua_falla')
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    "Mantengo pausados los reportes automaticos. Cuando se estabilice, marca que ya fue solucionado.",
+                )
+            await asyncio.sleep(1)
+
         for chat_id in eventos['pdf']:
             if self._telemetria is None or self._indice_actual <= 0:
                 await self.telegram.enviar_mensaje_simple(
@@ -437,7 +860,8 @@ class WorkerPeletizacion:
                 )
             await asyncio.sleep(1)
 
-    def _obtener_chats_destino(self, id_maquina: str) -> list[int]:
+    def _obtener_destinatarios(self, id_maquina: str) -> list[dict[str, Any]]:
+        """Obtiene destinatarios en modo operario para este proyecto de demo."""
         personal = self.data_loader.obtener_personal_en_turno(self._planta_objetivo, id_maquina)
         if personal.empty and self.data_loader.personal is not None:
             personal = self.data_loader.personal[
@@ -448,13 +872,20 @@ class WorkerPeletizacion:
                 )
             ].copy()
 
-        chats: list[int] = []
+        destinatarios: list[dict[str, Any]] = []
         for _, persona in personal.iterrows():
             celular = str(persona['numero_celular']).strip()
             chat_id = self.telegram.obtener_chat_id(celular)
-            if chat_id is not None and chat_id not in chats:
-                chats.append(chat_id)
-        return chats
+            rol = str(persona.get('rol', '')).strip().lower()
+            audiencia = 'operario'
+            ya_existe = any(item['chat_id'] == chat_id for item in destinatarios)
+            if chat_id is not None and not ya_existe:
+                destinatarios.append({
+                    'chat_id': chat_id,
+                    'audiencia': audiencia,
+                    'rol': rol,
+                })
+        return destinatarios
 
     async def _enviar_pdf(self, chat_id: int) -> bool:
         if self._telemetria is None or self._indice_actual <= 0:
@@ -468,6 +899,7 @@ class WorkerPeletizacion:
                 df_telemetria=df_total,
                 data_loader=self.data_loader,
                 historial_alertas=self.historial,
+                memoria_incidentes=self.memoria_incidentes,
             )
             nombre_pdf = f"Reporte_planta_001_lectura_{self._lecturas_procesadas}.pdf"
             enviado = await self.telegram.enviar_pdf(
@@ -560,6 +992,410 @@ class WorkerPeletizacion:
             f"<b>Explicacion IA del evento:</b>\n{html.escape(explicacion)}",
         )
 
+    async def _procesar_audio_operario(self, evento_audio: dict[str, Any]) -> None:
+        """Interpreta una nota de voz del operario y la registra."""
+        chat_id = int(evento_audio['chat_id'])
+        self._pausar_chat_operario(
+            chat_id,
+            motivo='audio_recibido',
+        )
+        await self.telegram.enviar_mensaje_simple(
+            chat_id,
+            "Audio recibido. Interpretando nota de voz con Gemini.",
+        )
+
+        contexto = self._construir_contexto_audio_operario()
+        try:
+            resultado = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.llm.interpretar_audio_operario,
+                    audio_bytes=evento_audio['audio_bytes'],
+                    mime_type=evento_audio['mime_type'],
+                    prompt_texto=contexto,
+                ),
+                timeout=60,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Timeout interpretando audio del operario con Gemini para chat_id=%d",
+                chat_id,
+            )
+            resultado = {
+                'transcripcion': '',
+                'intencion': 'OTRO',
+                'accion_detectada': 'Timeout en interpretacion del audio.',
+                'resumen_operario': 'Gemini tardo demasiado procesando la nota de voz.',
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': (
+                    'Tarde mas de lo esperado en interpretar la nota de voz. '
+                    'Si el problema ya se soluciono, pulsa el boton de confirmacion o envia una nota mas corta.'
+                ),
+                'senal_resolucion': 'NO',
+            }
+
+        lectura = self._ultima_lectura_publicada or {}
+        incidente_existente = self._incidentes_chat.get(chat_id, {})
+        incidente_id = int(incidente_existente.get('id_incidente', 0) or 0)
+        if not incidente_id:
+            incidente_id = self.memoria_incidentes.abrir_incidente(
+                chat_id=chat_id,
+                lectura=lectura,
+                resumen_alerta=self._resumir_alertas_confirmadas(lectura.get('alertas_confirmadas', [])),
+            )
+        self._incidentes_chat[chat_id] = {
+            'id_incidente': incidente_id,
+            'lectura': dict(lectura),
+            'resultado_audio': dict(resultado),
+            'timestamp': datetime.now().isoformat(),
+        }
+        self.memoria_incidentes.registrar_evento(
+            id_incidente=incidente_id,
+            tipo_evento='audio_operario',
+            descripcion='El operario envio una nota de voz para actualizar el incidente.',
+            payload={
+                'intencion': resultado.get('intencion', 'OTRO'),
+                'urgencia': resultado.get('nivel_urgencia', 'MEDIO'),
+                'senal_resolucion': resultado.get('senal_resolucion', 'NO'),
+            },
+        )
+        self.historial_operario.registrar_interaccion(
+            chat_id=chat_id,
+            tipo_entrada=evento_audio.get('tipo_entrada', 'audio'),
+            mime_type=evento_audio.get('mime_type', 'audio/ogg'),
+            duracion_seg=float(evento_audio.get('duracion_seg', 0.0)),
+            audio_file_id=str(evento_audio.get('file_id', '')),
+            id_planta=str(lectura.get('id_planta', '001')),
+            id_maquina=str(lectura.get('id_maquina', '')),
+            id_formula=str(lectura.get('id_formula', '')),
+            codigo_producto=str(lectura.get('codigo_producto', '')),
+            transcripcion=resultado.get('transcripcion', ''),
+            intencion=resultado.get('intencion', 'OTRO'),
+            accion_detectada=resultado.get('accion_detectada', ''),
+            resumen_operario=resultado.get('resumen_operario', ''),
+            nivel_urgencia=resultado.get('nivel_urgencia', 'MEDIO'),
+        )
+
+        senal_resolucion = str(resultado.get('senal_resolucion', 'NO')).strip().upper() == 'SI'
+        if senal_resolucion:
+            estado_monitoreo = "Cierre detectado. Generando ficha de incidente antes de reanudar monitoreo."
+        else:
+            self._pausar_chat_operario(
+                chat_id,
+                motivo=resultado.get('intencion', 'OTRO'),
+            )
+            estado_monitoreo = "Envio automatico pausado hasta que reportes solucion del problema."
+
+        respuesta = (
+            f"<b>Maria</b>\n"
+            f"{html.escape(resultado.get('respuesta_asistente') or resultado.get('resumen_operario', 'Sin novedades relevantes.'))}\n"
+            f"<b>Intencion:</b> {html.escape(resultado.get('intencion', 'OTRO'))} | "
+            f"<b>Urgencia:</b> {html.escape(resultado.get('nivel_urgencia', 'MEDIO'))}\n"
+            f"<i>{html.escape(estado_monitoreo)}</i>"
+        )
+        await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+        self.memoria_incidentes.registrar_evento(
+            id_incidente=incidente_id,
+            tipo_evento='respuesta_maria',
+            descripcion='Maria respondio al operario con apoyo operativo.',
+            payload={
+                'respuesta': resultado.get('respuesta_asistente', ''),
+                'senal_resolucion': resultado.get('senal_resolucion', 'NO'),
+            },
+        )
+        if senal_resolucion:
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                self.memoria_incidentes.registrar_evento(
+                    id_incidente=incidente_id,
+                    tipo_evento='monitoreo_reanudado',
+                    descripcion='El monitoreo automatico fue reanudado tras cierre por audio.',
+                )
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    "Monitoreo automatico reanudado. La ficha de cierre ya fue enviada.",
+                )
+            else:
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    "No pude generar aun la ficha de cierre. El sistema sigue en espera.",
+                )
+        else:
+            self.memoria_incidentes.registrar_evento(
+                id_incidente=incidente_id,
+                tipo_evento='espera_confirmacion',
+                descripcion='El sistema queda pausado esperando confirmacion de solucion.',
+            )
+            await self.telegram.enviar_confirmacion_solucion(
+                chat_id,
+                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
+            )
+
+    def _chat_pausado(self, chat_id: int) -> bool:
+        """Indica si un chat de operario tiene el flujo automatico pausado."""
+        return chat_id in self._chats_pausados_operacion
+
+    def _flujo_telemetria_bloqueado(self) -> bool:
+        """Bloquea nuevas lecturas mientras haya incidentes activos o cierres pendientes."""
+        return bool(self._chats_pausados_operacion or self._incidentes_chat)
+
+    def _pausar_chat_operario(self, chat_id: int, motivo: str) -> None:
+        """Marca un chat como pausado mientras el operario atiende la novedad."""
+        self._chats_pausados_operacion[chat_id] = {
+            'timestamp': datetime.now(),
+            'motivo': str(motivo or 'sin_detalle'),
+        }
+
+    def _reanudar_chat_operario(self, chat_id: int) -> None:
+        """Reanuda el flujo automatico para un chat de operario."""
+        self._chats_pausados_operacion.pop(chat_id, None)
+
+    async def _enviar_ficha_cierre_incidente(self, chat_id_origen: int) -> bool:
+        """Genera una ficha de cierre para gerencia cuando el operario confirma solucion."""
+        incidente = self._incidentes_chat.get(chat_id_origen)
+        if not incidente or self._ultimo_panel_bytes is None:
+            return False
+
+        lectura = incidente.get('lectura') or self._ultima_lectura_publicada
+        resultado_audio = incidente.get('resultado_audio', {})
+        id_incidente = int(incidente.get('id_incidente', 0) or 0)
+        if not lectura:
+            return False
+
+        prompt = self._construir_prompt_ficha_cierre(
+            lectura=lectura,
+            resultado_audio=resultado_audio,
+        )
+        imagen_ia, texto_ia = self.nano_banana.generar_ficha_visual(
+            prompt_texto=prompt,
+            imagen_referencia_bytes=self._ultimo_panel_bytes,
+        )
+        if imagen_ia is None:
+            if id_incidente:
+                self.memoria_incidentes.registrar_evento(
+                    id_incidente=id_incidente,
+                    tipo_evento='ficha_fallida',
+                    descripcion='La ficha IA de cierre no pudo generarse.',
+                    payload={'detalle': texto_ia},
+                )
+            logger.warning("No fue posible generar ficha de cierre gerencial: %s", texto_ia)
+            return False
+
+        chats_destino = self._obtener_chats_gerenciales(str(lectura.get('id_maquina', '')))
+        if chat_id_origen not in chats_destino:
+            chats_destino.append(chat_id_origen)
+
+        for chat_id in chats_destino:
+            enviado = await self.telegram.enviar_imagen(
+                chat_id,
+                imagen_ia,
+                caption="Ficha IA de cierre de incidente",
+            )
+            if not enviado:
+                if id_incidente:
+                    self.memoria_incidentes.registrar_evento(
+                        id_incidente=id_incidente,
+                        tipo_evento='envio_ficha_fallido',
+                        descripcion='No fue posible enviar la ficha de cierre por Telegram.',
+                        payload={'chat_id': chat_id},
+                    )
+                logger.warning("No fue posible enviar ficha de cierre a chat_id=%d", chat_id)
+                return False
+            await asyncio.sleep(1)
+
+        correo_ok = self.email_service.enviar_cierre_incidente(
+            lectura=lectura,
+            resultado_audio=resultado_audio,
+            imagen_png=imagen_ia,
+        )
+        if not correo_ok:
+            if id_incidente:
+                self.memoria_incidentes.registrar_evento(
+                    id_incidente=id_incidente,
+                    tipo_evento='correo_fallido',
+                    descripcion='La ficha se genero, pero el correo al supervisor no pudo enviarse.',
+                )
+            logger.warning("La ficha de cierre no pudo enviarse por correo al supervisor.")
+            return False
+
+        if id_incidente:
+            self.memoria_incidentes.registrar_evento(
+                id_incidente=id_incidente,
+                tipo_evento='ficha_y_correo_enviados',
+                descripcion='La ficha de cierre fue enviada por Telegram y correo al supervisor.',
+                payload={'nota_nano_banana': texto_ia},
+            )
+            self.memoria_incidentes.cerrar_incidente(
+                id_incidente=id_incidente,
+                resultado_audio=resultado_audio,
+                ficha_generada=True,
+                correo_enviado=True,
+                monitoreo_reanudado=True,
+            )
+
+        self._incidentes_chat.pop(chat_id_origen, None)
+        return True
+
+    def _obtener_chats_gerenciales(self, id_maquina: str) -> list[int]:
+        """En esta version el cierre visual se comparte solo al chat del operario."""
+        return []
+
+    def _construir_mensaje_operario(
+        self,
+        lectura: dict[str, Any],
+        estado_global: str,
+        severidad: str,
+        indice_salud: int,
+        etiqueta_salud: str,
+        estado_temperatura: str,
+        estado_presion: str,
+        porcentaje_carga: float,
+        tendencia_temp: str,
+        tendencia_pres: str,
+        pronostico: str,
+        pronostico_nivel: str,
+        causa_probable: str,
+    ) -> str:
+        """Construye un mensaje breve y accionable para el operario."""
+        resumen_tendencia = self._resumen_tendencia_corta(
+            tendencia_temp=tendencia_temp,
+            tendencia_pres=tendencia_pres,
+            pronostico_nivel=pronostico_nivel,
+        )
+        causa_corta = self._compactar_causa_probable(causa_probable)
+        estado_linea = f"{estado_global} | {severidad}"
+        if severidad in {'ALTA', 'CRITICA'}:
+            estado_linea = f"Atencion: {estado_linea}"
+
+        return (
+            f"<b>Lectura {lectura['numero']} | Maquina {lectura['id_maquina']}</b>\n"
+            f"<b>{estado_linea}</b>\n"
+            f"Temp <b>{lectura['temp_ema']:.1f} C</b> ({estado_temperatura}) | "
+            f"Pres <b>{lectura['presion_ema']:.1f} PSI</b> ({estado_presion})\n"
+            f"Salud <b>{indice_salud}/100</b> ({etiqueta_salud}) | Carga <b>{porcentaje_carga:.1f}%</b>\n"
+            f"<b>Lectura rapida:</b> {resumen_tendencia}\n"
+            f"<b>Causa:</b> {causa_corta}"
+        )
+
+    def _construir_mensaje_gerencial(
+        self,
+        lectura: dict[str, Any],
+        estado_global: str,
+        severidad: str,
+        indice_salud: int,
+        etiqueta_salud: str,
+        estado_temperatura: str,
+        estado_presion: str,
+        porcentaje_carga: float,
+        pronostico: str,
+        pronostico_nivel: str,
+        causa_probable: str,
+        prescripcion_maria: str,
+        resumen_alerta: str,
+    ) -> str:
+        """Construye un mensaje mas completo para supervisor o gerencia."""
+        mensaje = (
+            f"<b>Lectura {lectura['numero']} | Planta {lectura['id_planta']} | Maquina {lectura['id_maquina']}</b>\n"
+            f"<b>{estado_global}</b> | {severidad} | Salud <b>{indice_salud}/100</b> ({etiqueta_salud})\n"
+            f"Temp <b>{lectura['temp_ema']:.1f} C</b> ({estado_temperatura}) | "
+            f"Pres <b>{lectura['presion_ema']:.1f} PSI</b> ({estado_presion}) | "
+            f"Carga <b>{porcentaje_carga:.1f}%</b>\n"
+            f"<b>Pronostico 5 min:</b> {pronostico} ({pronostico_nivel})\n"
+            f"<b>Causa probable:</b> {causa_probable}\n"
+            f"<b>Maria:</b> {html.escape(self._compactar_prescripcion_maria(prescripcion_maria))}"
+        )
+        if resumen_alerta:
+            mensaje += f"\n<b>Alarma confirmada:</b> {resumen_alerta}"
+        return mensaje
+
+    def _resumen_tendencia_corta(
+        self,
+        tendencia_temp: str,
+        tendencia_pres: str,
+        pronostico_nivel: str,
+    ) -> str:
+        """Comprime tendencias largas en una frase breve para el operario."""
+        banderas = []
+        if 'cayendo' in tendencia_temp or 'deterioro' in tendencia_temp:
+            banderas.append('temperatura a la baja')
+        elif 'aument' in tendencia_temp:
+            banderas.append('temperatura al alza')
+
+        if 'cayendo' in tendencia_pres or 'deterioro' in tendencia_pres:
+            banderas.append('presion a la baja')
+        elif 'aument' in tendencia_pres:
+            banderas.append('presion al alza')
+
+        if not banderas:
+            base = 'variables estables en la ventana reciente'
+        else:
+            base = ', '.join(banderas)
+
+        riesgo = {
+            'BAJO': 'sin urgencia inmediata',
+            'MEDIO': 'vigilar proximos minutos',
+            'ALTO': 'riesgo operativo alto',
+        }.get(pronostico_nivel, 'vigilar comportamiento')
+        return f"{base}; {riesgo}."
+
+    def _compactar_causa_probable(self, causa_probable: str) -> str:
+        """Acorta la causa probable para no saturar el chat del operario."""
+        texto = (causa_probable or '').strip()
+        if not texto:
+            return 'sin causa dominante identificada'
+        if len(texto) <= 70:
+            return texto
+
+        recortes = [
+            ' combinada con ',
+            ' con ',
+            ' o ',
+            ' tras ',
+        ]
+        for separador in recortes:
+            if separador in texto:
+                return texto.split(separador)[0].strip()
+        return texto[:67].rstrip(' ,.;:') + '...'
+
+    def _compactar_prescripcion_maria(self, prescripcion: str) -> str:
+        """Reduce la salida de Maria a una sola instruccion clara para chat."""
+        texto = self._limpiar_texto_llm(prescripcion)
+        if not texto:
+            return 'Continuar monitoreo operativo.'
+
+        partes = [
+            fragmento.strip()
+            for fragmento in texto.replace('?', '.').replace('!', '.').split('.')
+            if fragmento.strip()
+        ]
+        if not partes:
+            return texto[:110].rstrip(' ,.;:') + ('...' if len(texto) > 110 else '')
+
+        primera = partes[0]
+        if len(primera) <= 110:
+            return primera + '.'
+        return primera[:107].rstrip(' ,.;:') + '...'
+
+    def _construir_contexto_audio_operario(self) -> str:
+        """Arma el contexto operativo que acompana el audio del operario."""
+        lectura = self._ultima_lectura_publicada
+        if not lectura:
+            return (
+                "No hay una lectura de proceso reciente asociada. "
+                "Interpreta el audio como observacion operativa general del operario."
+            )
+
+        return (
+            f"Contexto actual:\n"
+            f"Planta {lectura.get('id_planta', '001')} | Maquina {lectura.get('id_maquina', '')} | "
+            f"Formula {lectura.get('id_formula', '')}\n"
+            f"Estado {lectura.get('estado_global', '')} | Severidad {lectura.get('severidad', '')}\n"
+            f"Temp {lectura.get('temp_ema', 0):.1f} C ({lectura.get('estado_temperatura', '')}) | "
+            f"Pres {lectura.get('presion_ema', 0):.1f} PSI ({lectura.get('estado_presion', '')})\n"
+            f"Causa probable: {lectura.get('causa_probable', '')}\n"
+            "El audio puede confirmar solucion, reportar que la falla continua o pedir recomendacion puntual."
+        )
+
     def _construir_prompt_ficha_ia(
         self,
         lectura: dict[str, Any],
@@ -608,6 +1444,9 @@ Datos obligatorios:
 
 Instrucciones:
 - Disena una lamina visual limpia, profesional y muy clara para Telegram.
+- Usa SIEMPRE formato vertical tipo poster, proporcion retrato cercana a 4:5 o A4 vertical.
+- Mantén SIEMPRE la misma estructura visual base y el mismo estilo grafico entre incidentes.
+- Usa una reticula fija de arriba hacia abajo, centrada, con margenes amplios y composicion estable.
 - Usa estilo industrial corporativo, con jerarquia fuerte y composicion centrada.
 - {instruccion_audiencia}
 - La salida debe parecer una ficha de incidente o una tarjeta ejecutiva, no una grafica.
@@ -617,17 +1456,79 @@ Instrucciones:
   3. bloque de salud del proceso
   4. bloque de causa probable
   5. bloque de accion sugerida
+- Mantén esos 5 bloques siempre en el mismo orden y con la misma proporcion visual.
+- NO generes versiones horizontales, apaisadas ni composiciones tipo banner.
+- NO cambies el layout general entre eventos; solo cambia contenido y color de estado.
 - Si el estado es estable, presenta la pieza como continuidad operacional y monitoreo.
 - Si el estado es preventivo, alto o critico, presenta la pieza como alerta priorizada.
 - Puedes usar iconos industriales simples, bandas de color, flechas, indicadores y sellos visuales.
 - Evita saturar texto. Frases cortas y contundentes.
 - Usa colores segun severidad:
-  - informativa: azul y verde
-  - preventiva: amarillo/naranja
-  - alta: rojo
-  - critica: rojo oscuro y negro
+  - informativa: azul profundo + verde controlado
+  - preventiva: naranja industrial + azul oscuro
+  - alta: rojo tecnico + gris antracita
+  - critica: rojo oscuro + negro grafito
+- Conserva siempre fondo, tipografia, espaciado, iconografia y estilo general; solo varia la paleta de estado.
 - No inventes valores diferentes a los entregados.
 - Devuelve tambien una nota textual muy corta, maximo dos frases, explicando la ficha generada.
+"""
+
+    def _construir_prompt_ficha_cierre(
+        self,
+        lectura: dict[str, Any],
+        resultado_audio: dict[str, Any],
+    ) -> str:
+        """Construye un prompt de cierre ejecutivo tras la atencion del operario."""
+        return f"""
+Genera una ficha ejecutiva de cierre de incidente industrial en espanol.
+Usa la imagen tecnica solo como referencia del contexto del proceso.
+NO copies la grafica original.
+NO dibujes ejes, lineas, series temporales ni dashboards tecnicos.
+Transforma el contenido en una lamina premium de cierre para gerencia y supervisor.
+
+Objetivo:
+- resumir que paso
+- mostrar que el operario atendio el incidente
+- dejar claro que el monitoreo normal fue reanudado
+
+Datos del cierre:
+- Planta: {lectura['id_planta']}
+- Maquina: {lectura['id_maquina']}
+- Formula: {lectura['id_formula']} ({lectura['codigo_producto']})
+- Lectura de referencia: {lectura['numero']}
+- Estado global actual: {lectura['estado_global']}
+- Severidad: {lectura['severidad']}
+- Salud del proceso: {lectura['indice_salud']}/100 ({lectura['etiqueta_salud']})
+- Temperatura EMA: {lectura['temp_ema']:.1f} C ({lectura['estado_temperatura']})
+- Presion EMA: {lectura['presion_ema']:.1f} PSI ({lectura['estado_presion']})
+- Carga: {lectura['porcentaje_carga']:.1f}%
+- Causa probable: {lectura['causa_probable']}
+- Pronostico: {lectura['pronostico']} ({lectura['pronostico_nivel']})
+- Reporte del operario: {resultado_audio.get('resumen_operario', '')}
+- Intencion detectada: {resultado_audio.get('intencion', 'OTRO')}
+- Accion reportada: {resultado_audio.get('accion_detectada', '')}
+- Respuesta de Maria: {resultado_audio.get('respuesta_asistente', '')}
+- Estado final: incidente atendido y monitoreo reanudado
+
+Instrucciones visuales:
+- Diseno corporativo industrial, limpio y sobrio.
+- Usa SIEMPRE formato vertical tipo poster, proporcion retrato cercana a 4:5 o A4 vertical.
+- Mantén SIEMPRE el mismo layout de cierre, con composicion centrada y ordenada.
+- Prioriza claridad ejecutiva, trazabilidad y cierre del evento.
+- Usa 5 bloques maximo:
+  1. encabezado de cierre de incidente
+  2. sello de estado final: RESUELTO o ESTABILIZADO
+  3. resumen del incidente y severidad inicial
+  4. accion tomada por el operario
+  5. cierre con estado final y reanudacion del monitoreo
+- Mantén esos 5 bloques siempre en el mismo orden y con el mismo estilo visual.
+- NO generes versiones horizontales, apaisadas ni banners.
+- Fondo claro o muy limpio, tarjetas verticales y misma familia visual en todas las fichas.
+- Paleta base elegante: azul profundo, verde controlado y acentos naranja suaves.
+- Si la severidad del incidente fue mayor, usa acentos mas intensos pero sin cambiar el estilo general.
+- Evita saturacion de texto. Frases cortas.
+- No inventes datos ni acciones.
+- Devuelve una nota textual corta de maximo 2 frases.
 """
 
     def _construir_prompt_llm_operativo(
@@ -722,6 +1623,7 @@ Responde con maximo 3 oraciones:
         causa_probable: str,
         diagnostico_operativo: str,
         imagen_bytes: bytes,
+        video_bytes: Optional[bytes] = None,
     ) -> str:
         """Obtiene la prescripcion multimodal de Maria con fallback determinista."""
         prompt = self._construir_prompt_llm_operativo(
@@ -739,15 +1641,35 @@ Responde con maximo 3 oraciones:
             diagnostico_operativo=diagnostico_operativo,
         )
         try:
-            prescripcion = self.llm.diagnosticar(
+            # Loop agentico con few-shot dinámico desde feedback real del operario.
+            # ShadowTester despacha al modo configurado (off / shadow / ab):
+            #   off    → llama solo a la variante A (sin overhead)
+            #   shadow → corre A y B en paralelo; el operario solo ve A
+            #   ab     → sortea según SHADOW_PORCENTAJE_B qué variante ve el operario
+            # La variante asignada se registra en shadow_log.csv para análisis posterior.
+            id_maquina = str(lectura.get("id_maquina", ""))
+            variable   = lectura.get("variable_principal", "")
+            alerta_id  = int(lectura.get("numero_orden", 0) or 0)
+
+            prescripcion, variante = self.shadow_tester.generar_con_shadow(
                 prompt_texto=prompt,
+                herramientas=self.herramientas,
                 imagen_bytes=imagen_bytes,
+                video_bytes=video_bytes,
+                feedback_loop=self.feedback_loop,
+                id_maquina=id_maquina,
+                variable=variable,
+                alerta_id=alerta_id,
             )
             prescripcion = self._limpiar_texto_llm(prescripcion)
             if prescripcion:
+                logger.debug(
+                    "[A/B] Prescripción generada con variante %s | Máq: %s | Var: %s",
+                    variante, id_maquina, variable,
+                )
                 return prescripcion
         except Exception as e:
-            logger.error("Fallo obteniendo prescripcion multimodal de Maria: %s", e, exc_info=True)
+            logger.error("Fallo en loop agentico de Maria: %s", e, exc_info=True)
         return diagnostico_operativo
 
     def _limpiar_texto_llm(self, texto: str) -> str:
@@ -988,6 +1910,67 @@ Responde con maximo 3 oraciones:
         if score >= 40:
             return score, 'RIESGO'
         return score, 'CRITICO'
+
+    def _calcular_predictor_incidente(
+        self,
+        *,
+        id_maquina: str,
+        causa_probable: str,
+        severidad: str,
+        pronostico_nivel: str,
+        estado_temperatura: str,
+        estado_presion: str,
+        porcentaje_carga: float,
+    ) -> dict[str, Any]:
+        """Score simple de recurrencia basado en estado actual e historial reciente."""
+        score = 10
+        score += {
+            'INFORMATIVA': 0,
+            'PREVENTIVA': 12,
+            'ALTA': 24,
+            'CRITICA': 34,
+        }.get(severidad, 0)
+        score += {
+            'BAJO': 0,
+            'MEDIO': 18,
+            'ALTO': 30,
+        }.get(pronostico_nivel, 0)
+
+        if estado_temperatura != 'NORMAL':
+            score += 12
+        if estado_presion != 'NORMAL':
+            score += 12
+        if porcentaje_carga >= 90:
+            score += 10
+
+        contexto_memoria = self.memoria_incidentes.obtener_contexto_predictivo(
+            id_maquina=id_maquina,
+            causa_probable=causa_probable,
+            ventana_horas=24,
+        )
+        score += min(int(contexto_memoria.get('recientes_maquina', 0)) * 8, 16)
+        score += min(int(contexto_memoria.get('similares', 0)) * 10, 20)
+        score = max(0, min(100, score))
+
+        if score >= 75:
+            nivel = 'ALTO'
+        elif score >= 45:
+            nivel = 'MEDIO'
+        else:
+            nivel = 'BAJO'
+
+        mensaje = (
+            f"Riesgo {nivel.lower()} de recurrencia: "
+            f"{int(contexto_memoria.get('recientes_maquina', 0))} incidente(s) reciente(s) en maquina {id_maquina} "
+            f"y {int(contexto_memoria.get('similares', 0))} caso(s) con causa similar en 24 h."
+        )
+        return {
+            'score': int(score),
+            'nivel': nivel,
+            'mensaje': mensaje,
+            'recientes_maquina': int(contexto_memoria.get('recientes_maquina', 0)),
+            'similares': int(contexto_memoria.get('similares', 0)),
+        }
 
     def _registrar_alertas_confirmadas(
         self,

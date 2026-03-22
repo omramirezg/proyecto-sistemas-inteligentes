@@ -10,6 +10,7 @@ se escribe de forma fija en el código fuente.
 
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
 
@@ -76,6 +77,79 @@ class ConfigLoader:
         """Nombre del bucket en Google Cloud Storage."""
         return os.getenv('GCS_BUCKET', '')
 
+    @property
+    def pubsub_topic(self) -> str:
+        """Nombre del topic de Pub/Sub donde se publican lecturas de telemetría."""
+        return os.getenv('PUBSUB_TOPIC', 'telemetria-planta-001')
+
+    @property
+    def pubsub_subscription(self) -> str:
+        """Nombre de la suscripción Pub/Sub del worker principal."""
+        return os.getenv('PUBSUB_SUBSCRIPTION', 'telemetria-worker')
+
+    @property
+    def pubsub_habilitado(self) -> bool:
+        """Si True, el worker usa Pub/Sub en lugar del loop de polling."""
+        return os.getenv('PUBSUB_HABILITADO', '0').strip() in ('1', 'true', 'True', 'yes')
+
+    # =====================================================
+    # Propiedades de Modelo Local de Respaldo (Gemma / Ollama)
+    # =====================================================
+
+    @property
+    def gemma_fallback_habilitado(self) -> bool:
+        """Si True, usa Gemma local como fallback cuando Gemini falla."""
+        return os.getenv('GEMMA_FALLBACK_HABILITADO', '0').strip() in ('1', 'true', 'True', 'yes')
+
+    @property
+    def gemma_modelo_local(self) -> str:
+        """Nombre del modelo en Ollama a usar como fallback."""
+        return os.getenv('GEMMA_LOCAL_MODEL', 'gemma3:2b').strip()
+
+    @property
+    def gemma_ollama_url(self) -> str:
+        """URL base del servidor Ollama (por defecto: localhost:11434)."""
+        return os.getenv('GEMMA_OLLAMA_URL', 'http://localhost:11434').strip()
+
+    # =====================================================
+    # Propiedades de Shadow Mode / A/B Testing
+    # =====================================================
+
+    @property
+    def shadow_modo(self) -> str:
+        """Modo de operación del shadow tester: off | shadow | ab."""
+        return os.getenv('SHADOW_MODE', 'off').strip()
+
+    @property
+    def shadow_modelo_b(self) -> str:
+        """Modelo alternativo para la variante B (vacío = mismo que A)."""
+        return os.getenv('SHADOW_MODELO_B', '').strip()
+
+    @property
+    def shadow_temperatura_b(self) -> float:
+        """Temperatura para la variante B."""
+        return float(os.getenv('SHADOW_TEMPERATURA_B', '0.1'))
+
+    @property
+    def shadow_max_tokens_b(self) -> int:
+        """Máximo de tokens de salida para la variante B."""
+        return int(os.getenv('SHADOW_MAX_TOKENS_B', '600'))
+
+    @property
+    def shadow_top_p_b(self) -> float:
+        """Top-P para la variante B."""
+        return float(os.getenv('SHADOW_TOP_P_B', '0.9'))
+
+    @property
+    def shadow_porcentaje_b(self) -> float:
+        """Porcentaje de tráfico (0-100) que va a la variante B en modo ab."""
+        return float(os.getenv('SHADOW_PORCENTAJE_B', '20'))
+
+    @property
+    def shadow_system_prompt_b(self) -> str:
+        """System prompt alternativo para la variante B (vacío = mismo que A)."""
+        return os.getenv('SHADOW_SYSTEM_PROMPT_B', '').strip()
+
     # =====================================================
     # Propiedades de Telegram
     # =====================================================
@@ -84,6 +158,46 @@ class ConfigLoader:
     def telegram_bot_token(self) -> str:
         """Token del bot de Telegram obtenido de @BotFather."""
         return os.getenv('TELEGRAM_BOT_TOKEN', '')
+
+    # =====================================================
+    # Propiedades de correo electronico
+    # =====================================================
+
+    @property
+    def smtp_host(self) -> str:
+        """Servidor SMTP para envio de correos."""
+        return os.getenv('SMTP_HOST', '')
+
+    @property
+    def smtp_port(self) -> int:
+        """Puerto SMTP."""
+        return int(os.getenv('SMTP_PORT', '587'))
+
+    @property
+    def smtp_user(self) -> str:
+        """Usuario SMTP."""
+        return os.getenv('SMTP_USER', '')
+
+    @property
+    def smtp_password(self) -> str:
+        """Contrasena SMTP."""
+        return os.getenv('SMTP_PASSWORD', '')
+
+    @property
+    def smtp_sender(self) -> str:
+        """Correo remitente visible."""
+        return os.getenv('SMTP_SENDER', self.smtp_user)
+
+    @property
+    def smtp_use_tls(self) -> bool:
+        """Indica si el envio SMTP usa STARTTLS."""
+        return os.getenv('SMTP_USE_TLS', '1').strip() not in {'0', 'false', 'False'}
+
+    @property
+    def supervisor_emails(self) -> list[str]:
+        """Lista de correos del supervisor o gerencia."""
+        bruto = os.getenv('SUPERVISOR_EMAILS', '')
+        return [item.strip() for item in bruto.split(',') if item.strip()]
 
     # =====================================================
     # Propiedades de Gemini (Vertex AI)
@@ -98,6 +212,11 @@ class ConfigLoader:
     def gemini_image_model(self) -> str:
         """Modelo de Gemini para generación/edición de imágenes."""
         return os.getenv('GEMINI_IMAGE_MODEL', 'gemini-2.5-flash-image')
+
+    @property
+    def gemini_audio_model(self) -> str:
+        """Modelo de Gemini para comprension directa de audio."""
+        return os.getenv('GEMINI_AUDIO_MODEL', 'gemini-2.5-flash')
 
     @property
     def gemini_location(self) -> str:
@@ -230,9 +349,10 @@ class ConfigLoader:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
 
-        # Handler de archivo
-        file_handler = logging.FileHandler(
-            log_file, encoding='utf-8', mode='a'
+        # Handler de archivo con rotación (5 MB por archivo, máximo 5 backups)
+        file_handler = RotatingFileHandler(
+            log_file, encoding='utf-8', mode='a',
+            maxBytes=5 * 1024 * 1024, backupCount=5
         )
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(formato)

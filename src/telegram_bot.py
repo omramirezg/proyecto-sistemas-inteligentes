@@ -32,11 +32,16 @@ class NotificadorBase(ABC):
         chat_id: int,
         texto: str,
         alerta_id: Optional[int] = None,
+        audiencia: str = 'operario',
     ) -> bool:
         ...
 
     @abstractmethod
     async def enviar_audio(self, chat_id: int, audio_bytes: bytes) -> bool:
+        ...
+
+    @abstractmethod
+    async def enviar_confirmacion_solucion(self, chat_id: int, texto: str) -> bool:
         ...
 
     @abstractmethod
@@ -146,23 +151,28 @@ class TelegramNotificador(NotificadorBase):
         chat_id: int,
         texto: str,
         alerta_id: Optional[int] = None,
+        audiencia: str = 'operario',
     ) -> bool:
         try:
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
             bot = await self._obtener_bot()
-            filas = [[
-                InlineKeyboardButton("Solicitar PDF", callback_data="solicitar_pdf"),
-                InlineKeyboardButton("Solicitar Dashboard", callback_data="solicitar_dashboard"),
-            ]]
-            filas.append([
-                InlineKeyboardButton("Ficha Operario", callback_data="solicitar_ficha_operario"),
-                InlineKeyboardButton("Ficha Gerencial", callback_data="solicitar_ficha_gerencial"),
-            ])
-            filas.append([
-                InlineKeyboardButton("Explicar evento", callback_data="explicar_evento"),
-            ])
-            if alerta_id is not None:
+            filas = []
+
+            if audiencia == 'gerencial':
+                filas = [[
+                    InlineKeyboardButton("Solicitar PDF", callback_data="solicitar_pdf"),
+                    InlineKeyboardButton("Solicitar Dashboard", callback_data="solicitar_dashboard"),
+                ]]
+                filas.append([
+                    InlineKeyboardButton("Ficha Gerencial", callback_data="solicitar_ficha_gerencial"),
+                    InlineKeyboardButton("Explicar evento", callback_data="explicar_evento"),
+                ])
+                filas.append([
+                    InlineKeyboardButton("Ficha Operario", callback_data="solicitar_ficha_operario"),
+                ])
+
+            if alerta_id is not None and audiencia != 'gerencial':
                 filas.append([
                     InlineKeyboardButton("Util", callback_data=f"feedback:{alerta_id}:UTIL"),
                     InlineKeyboardButton("Falso positivo", callback_data=f"feedback:{alerta_id}:FALSO_POSITIVO"),
@@ -170,7 +180,7 @@ class TelegramNotificador(NotificadorBase):
                 filas.append([
                     InlineKeyboardButton("Mantenimiento", callback_data=f"feedback:{alerta_id}:FALLA_MECANICA"),
                 ])
-            teclado = InlineKeyboardMarkup(filas)
+            teclado = InlineKeyboardMarkup(filas) if filas else None
             await bot.send_message(
                 chat_id=chat_id,
                 text=texto,
@@ -210,6 +220,28 @@ class TelegramNotificador(NotificadorBase):
             return True
         except Exception as e:
             logger.error("Error enviando audio a chat_id=%d: %s", chat_id, e)
+            return False
+
+    async def enviar_confirmacion_solucion(self, chat_id: int, texto: str) -> bool:
+        """Pregunta al operario si la novedad ya fue solucionada."""
+        try:
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            bot = await self._obtener_bot()
+            teclado = InlineKeyboardMarkup([[
+                InlineKeyboardButton("Si, solucionado", callback_data="resolver_operacion:SI"),
+                InlineKeyboardButton("No, continua", callback_data="resolver_operacion:NO"),
+            ]])
+            await bot.send_message(
+                chat_id=chat_id,
+                text=texto,
+                parse_mode='HTML',
+                reply_markup=teclado,
+            )
+            logger.info("Confirmacion de solucion enviada: chat_id=%d", chat_id)
+            return True
+        except Exception as e:
+            logger.error("Error enviando confirmacion de solucion a chat_id=%d: %s", chat_id, e)
             return False
 
     async def enviar_imagen(
@@ -279,6 +311,13 @@ class TelegramNotificador(NotificadorBase):
             logger.error("Error enviando documento a chat_id=%d: %s", chat_id, e)
             return False
 
+    async def _descargar_archivo(self, file_id: str) -> bytes:
+        """Descarga un archivo enviado al bot y lo devuelve en memoria."""
+        bot = await self._obtener_bot()
+        archivo = await bot.get_file(file_id)
+        contenido = await archivo.download_as_bytearray()
+        return bytes(contenido)
+
     async def obtener_eventos_chat(self) -> dict[str, list]:
         """Lee mensajes recientes y devuelve solicitudes del chat."""
         try:
@@ -296,7 +335,9 @@ class TelegramNotificador(NotificadorBase):
                 'ficha_operario': [],
                 'ficha_gerencial': [],
                 'explicar_evento': [],
+                'audio_operario': [],
                 'feedback': [],
+                'resolver_operacion': [],
             }
 
         if not self._polling_inicializado:
@@ -309,7 +350,9 @@ class TelegramNotificador(NotificadorBase):
                 'ficha_operario': [],
                 'ficha_gerencial': [],
                 'explicar_evento': [],
+                'audio_operario': [],
                 'feedback': [],
+                'resolver_operacion': [],
             }
 
         eventos = {
@@ -318,7 +361,9 @@ class TelegramNotificador(NotificadorBase):
             'ficha_operario': [],
             'ficha_gerencial': [],
             'explicar_evento': [],
+            'audio_operario': [],
             'feedback': [],
+            'resolver_operacion': [],
         }
         for update in updates:
             self._ultimo_update_id = update.update_id + 1
@@ -330,6 +375,8 @@ class TelegramNotificador(NotificadorBase):
                     texto_respuesta = "Solicitud recibida"
                     if isinstance(callback_query.data, str) and callback_query.data.startswith('feedback:'):
                         texto_respuesta = "Feedback recibido"
+                    elif isinstance(callback_query.data, str) and callback_query.data.startswith('resolver_operacion:'):
+                        texto_respuesta = "Confirmacion recibida"
                     await bot.answer_callback_query(
                         callback_query_id=callback_query.id,
                         text=texto_respuesta,
@@ -365,9 +412,50 @@ class TelegramNotificador(NotificadorBase):
                         )
                     except Exception as e:
                         logger.error("Callback de feedback invalido: %s", e)
+                elif callback_query.data.startswith('resolver_operacion:'):
+                    try:
+                        _, estado = callback_query.data.split(':', 1)
+                        eventos['resolver_operacion'].append(
+                            (callback_query.message.chat_id, estado.strip().upper())
+                        )
+                    except Exception as e:
+                        logger.error("Callback de resolucion invalido: %s", e)
                 continue
 
-            if message is None or message.text is None:
+            if message is None:
+                continue
+
+            if getattr(message, 'voice', None) is not None:
+                try:
+                    voice = message.voice
+                    eventos['audio_operario'].append({
+                        'chat_id': message.chat_id,
+                        'audio_bytes': await self._descargar_archivo(voice.file_id),
+                        'mime_type': voice.mime_type or 'audio/ogg',
+                        'duracion_seg': float(voice.duration or 0),
+                        'file_id': voice.file_id,
+                        'tipo_entrada': 'voice',
+                    })
+                except Exception as e:
+                    logger.error("Error descargando nota de voz del operario: %s", e)
+                continue
+
+            if getattr(message, 'audio', None) is not None:
+                try:
+                    audio = message.audio
+                    eventos['audio_operario'].append({
+                        'chat_id': message.chat_id,
+                        'audio_bytes': await self._descargar_archivo(audio.file_id),
+                        'mime_type': audio.mime_type or 'audio/mpeg',
+                        'duracion_seg': float(audio.duration or 0),
+                        'file_id': audio.file_id,
+                        'tipo_entrada': 'audio',
+                    })
+                except Exception as e:
+                    logger.error("Error descargando audio del operario: %s", e)
+                continue
+
+            if message.text is None:
                 continue
 
             texto = message.text.strip().lower()

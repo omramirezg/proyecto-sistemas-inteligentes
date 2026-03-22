@@ -38,10 +38,13 @@ class DashboardEjecutivo:
         causa_probable: str,
         alertas_confirmadas: list[Any],
         estadisticas_feedback: dict[str, Any],
+        estadisticas_incidentes: dict[str, Any],
+        predictor_incidente: dict[str, Any],
     ) -> None:
         """Escribe el dashboard HTML con la ultima lectura y el contexto ejecutivo."""
         alertas_html = self._render_alertas(alertas_confirmadas)
         feedback_html = self._render_feedback(estadisticas_feedback)
+        incidentes_html = self._render_incidentes(estadisticas_incidentes, predictor_incidente)
         historial = lectura.get('historial_reciente', [])
         tendencia_html = self._render_tendencias(historial)
 
@@ -260,9 +263,15 @@ class DashboardEjecutivo:
       </div>
     </div>
 
-    <div class="card">
-      <h2 class="title">Ventana Reciente de Tendencias</h2>
-      {tendencia_html}
+    <div class="section">
+      <div class="card">
+        <h2 class="title">Memoria de Incidentes</h2>
+        {incidentes_html}
+      </div>
+      <div class="card">
+        <h2 class="title">Ventana Reciente de Tendencias</h2>
+        {tendencia_html}
+      </div>
     </div>
   </div>
 </body>
@@ -333,4 +342,27 @@ class DashboardEjecutivo:
             "<table class='table'>"
             "<thead><tr><th>Timestamp</th><th>Temp EMA</th><th>Presion EMA</th><th>Corriente EMA</th></tr></thead>"
             f"<tbody>{''.join(filas)}</tbody></table>"
+        )
+
+    def _render_incidentes(
+        self,
+        estadisticas_incidentes: dict[str, Any],
+        predictor_incidente: dict[str, Any],
+    ) -> str:
+        total = int(estadisticas_incidentes.get('total_incidentes', 0))
+        abiertos = int(estadisticas_incidentes.get('incidentes_abiertos', 0))
+        cerrados = int(estadisticas_incidentes.get('incidentes_cerrados', 0))
+        tiempo = float(estadisticas_incidentes.get('tiempo_promedio_resolucion_min', 0.0))
+        riesgo = predictor_incidente.get('nivel', 'BAJO')
+        score = int(predictor_incidente.get('score', 0))
+        explicacion = predictor_incidente.get('mensaje', 'Sin riesgo destacado de recurrencia.')
+
+        return (
+            f"<span class='pill'>Incidentes: {total}</span>"
+            f"<span class='pill'>Abiertos: {abiertos}</span>"
+            f"<span class='pill'>Cerrados: {cerrados}</span>"
+            f"<span class='pill'>T. resolucion: {tiempo:.1f} min</span>"
+            f"<span class='pill'>Score recurrencia: {score}/100</span>"
+            f"<span class='pill'>Riesgo predictivo: {html.escape(str(riesgo))}</span>"
+            f"<p style='margin-top:14px; line-height:1.6;'><strong>Lectura predictiva:</strong> {html.escape(str(explicacion))}</p>"
         )
