@@ -36,6 +36,9 @@ from shadow_tester import ShadowTester
 from generador_video_telemetria import GeneradorVideoTelemetria
 from email_service import EmailService
 from memoria_incidentes import MemoriaIncidentes
+from analizador_telemetria import AnalizadorTelemetria
+from constructor_prompts import ConstructorPrompts
+from constructor_mensajes import ConstructorMensajes
 
 logger = logging.getLogger(__name__)
 
@@ -303,43 +306,43 @@ class WorkerPeletizacion:
             lectura['corriente_ema'] / lectura['capacidad_nominal'] * 100
             if lectura['capacidad_nominal'] > 0 else 0.0
         )
-        estado_temperatura = self._estado_en_banda(
+        estado_temperatura = AnalizadorTelemetria.estado_en_banda(
             lectura['temp_ema'], lectura['t_min'], lectura['t_max']
         )
-        estado_presion = self._estado_en_banda(
+        estado_presion = AnalizadorTelemetria.estado_en_banda(
             lectura['presion_ema'], lectura['p_min'], lectura['p_max']
         )
-        diagnostico_operativo = self._construir_diagnostico_operativo(
+        diagnostico_operativo = AnalizadorTelemetria.construir_diagnostico_operativo(
             lectura=lectura,
             estado_temperatura=estado_temperatura,
             estado_presion=estado_presion,
             porcentaje_carga=porcentaje_carga,
         )
-        tendencia_temp = self._analizar_tendencia(
+        tendencia_temp = AnalizadorTelemetria.analizar_tendencia(
             lectura['historial_reciente'],
             'temp_ema',
             lectura['t_min'],
             lectura['t_max'],
         )
-        tendencia_pres = self._analizar_tendencia(
+        tendencia_pres = AnalizadorTelemetria.analizar_tendencia(
             lectura['historial_reciente'],
             'presion_ema',
             lectura['p_min'],
             lectura['p_max'],
         )
-        pronostico = self._construir_pronostico(
+        pronostico = AnalizadorTelemetria.construir_pronostico(
             tendencia_temp=tendencia_temp,
             tendencia_pres=tendencia_pres,
             estado_temperatura=estado_temperatura,
             estado_presion=estado_presion,
         )
-        estado_global, severidad = self._clasificar_contexto_global(
+        estado_global, severidad = AnalizadorTelemetria.clasificar_contexto_global(
             estado_temperatura=estado_temperatura,
             estado_presion=estado_presion,
             porcentaje_carga=porcentaje_carga,
             pronostico_nivel=pronostico['nivel'],
         )
-        causa_probable = self._inferir_causa_probable(
+        causa_probable = AnalizadorTelemetria.inferir_causa_probable(
             estado_temperatura=estado_temperatura,
             estado_presion=estado_presion,
             porcentaje_carga=porcentaje_carga,
@@ -347,7 +350,7 @@ class WorkerPeletizacion:
             tendencia_pres=tendencia_pres['mensaje'],
             pronostico_nivel=pronostico['nivel'],
         )
-        indice_salud, etiqueta_salud = self._calcular_indice_salud(
+        indice_salud, etiqueta_salud = AnalizadorTelemetria.calcular_indice_salud(
             estado_temperatura=estado_temperatura,
             estado_presion=estado_presion,
             porcentaje_carga=porcentaje_carga,
@@ -371,9 +374,9 @@ class WorkerPeletizacion:
             causa_probable=causa_probable,
             pronostico=pronostico['mensaje'],
         )
-        resumen_alerta = self._resumir_alertas_confirmadas(lectura['alertas_confirmadas'])
+        resumen_alerta = AnalizadorTelemetria.resumir_alertas_confirmadas(lectura['alertas_confirmadas'])
 
-        texto_operario = self._construir_mensaje_operario(
+        texto_operario = ConstructorMensajes.mensaje_operario(
             lectura=lectura,
             estado_global=estado_global,
             severidad=severidad,
@@ -445,7 +448,7 @@ class WorkerPeletizacion:
             video_bytes=video_bytes,
         )
         texto_operario += "\n<i>Si necesitas apoyo, enviame una nota de voz.</i>"
-        texto_gerencial = self._construir_mensaje_gerencial(
+        texto_gerencial = ConstructorMensajes.mensaje_gerencial(
             lectura=lectura,
             estado_global=estado_global,
             severidad=severidad,
@@ -954,7 +957,7 @@ class WorkerPeletizacion:
                 else "Generando ficha visual IA gerencial. Un momento por favor."
             ),
         )
-        prompt = self._construir_prompt_ficha_ia(
+        prompt = ConstructorPrompts.prompt_ficha_ia(
             self._ultima_lectura_publicada,
             audiencia=audiencia,
         )
@@ -989,12 +992,12 @@ class WorkerPeletizacion:
             chat_id,
             "Generando explicacion multimodal del evento. Un momento por favor.",
         )
-        prompt = self._construir_prompt_explicacion_evento(self._ultima_lectura_publicada)
+        prompt = ConstructorPrompts.prompt_explicacion_evento(self._ultima_lectura_publicada)
         explicacion = self.llm.diagnosticar(
             prompt_texto=prompt,
             imagen_bytes=self._ultimo_panel_bytes,
         )
-        explicacion = self._limpiar_texto_llm(explicacion)
+        explicacion = AnalizadorTelemetria.limpiar_texto_llm(explicacion)
         return await self.telegram.enviar_mensaje_simple(
             chat_id,
             f"<b>Explicacion IA del evento:</b>\n{html.escape(explicacion)}",
@@ -1012,7 +1015,7 @@ class WorkerPeletizacion:
             "Audio recibido. Interpretando nota de voz con Gemini.",
         )
 
-        contexto = self._construir_contexto_audio_operario()
+        contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
         try:
             resultado = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -1048,7 +1051,7 @@ class WorkerPeletizacion:
             incidente_id = self.memoria_incidentes.abrir_incidente(
                 chat_id=chat_id,
                 lectura=lectura,
-                resumen_alerta=self._resumir_alertas_confirmadas(lectura.get('alertas_confirmadas', [])),
+                resumen_alerta=AnalizadorTelemetria.resumir_alertas_confirmadas(lectura.get('alertas_confirmadas', [])),
             )
         self._incidentes_chat[chat_id] = {
             'id_incidente': incidente_id,
@@ -1170,7 +1173,7 @@ class WorkerPeletizacion:
         if not lectura:
             return False
 
-        prompt = self._construir_prompt_ficha_cierre(
+        prompt = ConstructorPrompts.prompt_ficha_cierre(
             lectura=lectura,
             resultado_audio=resultado_audio,
         )
@@ -1248,373 +1251,14 @@ class WorkerPeletizacion:
         """En esta version el cierre visual se comparte solo al chat del operario."""
         return []
 
-    def _construir_mensaje_operario(
-        self,
-        lectura: dict[str, Any],
-        estado_global: str,
-        severidad: str,
-        indice_salud: int,
-        etiqueta_salud: str,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        tendencia_temp: str,
-        tendencia_pres: str,
-        pronostico: str,
-        pronostico_nivel: str,
-        causa_probable: str,
-    ) -> str:
-        """Construye un mensaje breve y accionable para el operario."""
-        resumen_tendencia = self._resumen_tendencia_corta(
-            tendencia_temp=tendencia_temp,
-            tendencia_pres=tendencia_pres,
-            pronostico_nivel=pronostico_nivel,
-        )
-        causa_corta = self._compactar_causa_probable(causa_probable)
-        estado_linea = f"{estado_global} | {severidad}"
-        if severidad in {'ALTA', 'CRITICA'}:
-            estado_linea = f"Atencion: {estado_linea}"
 
-        return (
-            f"<b>Lectura {lectura['numero']} | Maquina {lectura['id_maquina']}</b>\n"
-            f"<b>{estado_linea}</b>\n"
-            f"Temp <b>{lectura['temp_ema']:.1f} C</b> ({estado_temperatura}) | "
-            f"Pres <b>{lectura['presion_ema']:.1f} PSI</b> ({estado_presion})\n"
-            f"Salud <b>{indice_salud}/100</b> ({etiqueta_salud}) | Carga <b>{porcentaje_carga:.1f}%</b>\n"
-            f"<b>Lectura rapida:</b> {resumen_tendencia}\n"
-            f"<b>Causa:</b> {causa_corta}"
-        )
 
-    def _construir_mensaje_gerencial(
-        self,
-        lectura: dict[str, Any],
-        estado_global: str,
-        severidad: str,
-        indice_salud: int,
-        etiqueta_salud: str,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        pronostico: str,
-        pronostico_nivel: str,
-        causa_probable: str,
-        prescripcion_maria: str,
-        resumen_alerta: str,
-    ) -> str:
-        """Construye un mensaje mas completo para supervisor o gerencia."""
-        mensaje = (
-            f"<b>Lectura {lectura['numero']} | Planta {lectura['id_planta']} | Maquina {lectura['id_maquina']}</b>\n"
-            f"<b>{estado_global}</b> | {severidad} | Salud <b>{indice_salud}/100</b> ({etiqueta_salud})\n"
-            f"Temp <b>{lectura['temp_ema']:.1f} C</b> ({estado_temperatura}) | "
-            f"Pres <b>{lectura['presion_ema']:.1f} PSI</b> ({estado_presion}) | "
-            f"Carga <b>{porcentaje_carga:.1f}%</b>\n"
-            f"<b>Pronostico 5 min:</b> {pronostico} ({pronostico_nivel})\n"
-            f"<b>Causa probable:</b> {causa_probable}\n"
-            f"<b>Maria:</b> {html.escape(self._compactar_prescripcion_maria(prescripcion_maria))}"
-        )
-        if resumen_alerta:
-            mensaje += f"\n<b>Alarma confirmada:</b> {resumen_alerta}"
-        return mensaje
 
-    def _resumen_tendencia_corta(
-        self,
-        tendencia_temp: str,
-        tendencia_pres: str,
-        pronostico_nivel: str,
-    ) -> str:
-        """Comprime tendencias largas en una frase breve para el operario."""
-        banderas = []
-        if 'cayendo' in tendencia_temp or 'deterioro' in tendencia_temp:
-            banderas.append('temperatura a la baja')
-        elif 'aument' in tendencia_temp:
-            banderas.append('temperatura al alza')
 
-        if 'cayendo' in tendencia_pres or 'deterioro' in tendencia_pres:
-            banderas.append('presion a la baja')
-        elif 'aument' in tendencia_pres:
-            banderas.append('presion al alza')
 
-        if not banderas:
-            base = 'variables estables en la ventana reciente'
-        else:
-            base = ', '.join(banderas)
 
-        riesgo = {
-            'BAJO': 'sin urgencia inmediata',
-            'MEDIO': 'vigilar proximos minutos',
-            'ALTO': 'riesgo operativo alto',
-        }.get(pronostico_nivel, 'vigilar comportamiento')
-        return f"{base}; {riesgo}."
 
-    def _compactar_causa_probable(self, causa_probable: str) -> str:
-        """Acorta la causa probable para no saturar el chat del operario."""
-        texto = (causa_probable or '').strip()
-        if not texto:
-            return 'sin causa dominante identificada'
-        if len(texto) <= 70:
-            return texto
 
-        recortes = [
-            ' combinada con ',
-            ' con ',
-            ' o ',
-            ' tras ',
-        ]
-        for separador in recortes:
-            if separador in texto:
-                return texto.split(separador)[0].strip()
-        return texto[:67].rstrip(' ,.;:') + '...'
-
-    def _compactar_prescripcion_maria(self, prescripcion: str) -> str:
-        """Reduce la salida de Maria a una sola instruccion clara para chat."""
-        texto = self._limpiar_texto_llm(prescripcion)
-        if not texto:
-            return 'Continuar monitoreo operativo.'
-
-        partes = [
-            fragmento.strip()
-            for fragmento in texto.replace('?', '.').replace('!', '.').split('.')
-            if fragmento.strip()
-        ]
-        if not partes:
-            return texto[:110].rstrip(' ,.;:') + ('...' if len(texto) > 110 else '')
-
-        primera = partes[0]
-        if len(primera) <= 110:
-            return primera + '.'
-        return primera[:107].rstrip(' ,.;:') + '...'
-
-    def _construir_contexto_audio_operario(self) -> str:
-        """Arma el contexto operativo que acompana el audio del operario."""
-        lectura = self._ultima_lectura_publicada
-        if not lectura:
-            return (
-                "No hay una lectura de proceso reciente asociada. "
-                "Interpreta el audio como observacion operativa general del operario."
-            )
-
-        return (
-            f"Contexto actual:\n"
-            f"Planta {lectura.get('id_planta', '001')} | Maquina {lectura.get('id_maquina', '')} | "
-            f"Formula {lectura.get('id_formula', '')}\n"
-            f"Estado {lectura.get('estado_global', '')} | Severidad {lectura.get('severidad', '')}\n"
-            f"Temp {lectura.get('temp_ema', 0):.1f} C ({lectura.get('estado_temperatura', '')}) | "
-            f"Pres {lectura.get('presion_ema', 0):.1f} PSI ({lectura.get('estado_presion', '')})\n"
-            f"Causa probable: {lectura.get('causa_probable', '')}\n"
-            "El audio puede confirmar solucion, reportar que la falla continua o pedir recomendacion puntual."
-        )
-
-    def _construir_prompt_ficha_ia(
-        self,
-        lectura: dict[str, Any],
-        audiencia: str,
-    ) -> str:
-        """Construye el prompt multimodal para Nano Banana."""
-        accion_sugerida = self._accion_sugerida_ficha(lectura)
-        es_operario = audiencia == 'operario'
-        modo_ficha = (
-            "tarjeta de continuidad operacional para operario"
-            if es_operario and lectura['severidad'] == 'INFORMATIVA'
-            else "ficha de intervencion operativa para operario"
-            if es_operario
-            else "lamina ejecutiva gerencial de continuidad operacional"
-            if lectura['severidad'] == 'INFORMATIVA'
-            else "lamina ejecutiva gerencial de riesgo operativo"
-        )
-        instruccion_audiencia = (
-            "Prioriza accion inmediata, lectura rapida, alto contraste y mensajes cortos para personal en planta."
-            if es_operario
-            else "Prioriza impacto ejecutivo, claridad de riesgo, continuidad operacional y lectura corporativa premium."
-        )
-        return f"""
-Genera una {modo_ficha} industrial en espanol.
-Usa la imagen tecnica suministrada SOLO como referencia de contexto.
-NO copies la grafica original.
-NO dibujes ejes, series temporales, lineas, puntos, dashboards tecnicos ni tablas parecidas a la imagen base.
-Transforma el contenido en una pieza visual nueva, tipo poster ejecutivo-operacional premium para Telegram.
-
-Datos obligatorios:
-- Planta: {lectura['id_planta']}
-- Maquina: {lectura['id_maquina']}
-- Formula: {lectura['id_formula']} ({lectura['codigo_producto']})
-- Lectura: {lectura['numero']}
-- Estado global: {lectura['estado_global']}
-- Severidad: {lectura['severidad']}
-- Indice de salud: {lectura['indice_salud']}/100 ({lectura['etiqueta_salud']})
-- Temperatura EMA: {lectura['temp_ema']:.1f} C ({lectura['estado_temperatura']})
-- Presion EMA: {lectura['presion_ema']:.1f} PSI ({lectura['estado_presion']})
-- Carga: {lectura['porcentaje_carga']:.1f}%
-- Tendencia temperatura: {lectura['tendencia_temp']}
-- Tendencia presion: {lectura['tendencia_pres']}
-- Pronostico a 5 min: {lectura['pronostico']} ({lectura['pronostico_nivel']})
-- Causa probable: {lectura['causa_probable']}
-- Accion sugerida: {accion_sugerida}
-
-Instrucciones:
-- Disena una lamina visual limpia, profesional y muy clara para Telegram.
-- Usa SIEMPRE formato vertical tipo poster, proporcion retrato cercana a 4:5 o A4 vertical.
-- Mantén SIEMPRE la misma estructura visual base y el mismo estilo grafico entre incidentes.
-- Usa una reticula fija de arriba hacia abajo, centrada, con margenes amplios y composicion estable.
-- Usa estilo industrial corporativo, con jerarquia fuerte y composicion centrada.
-- {instruccion_audiencia}
-- La salida debe parecer una ficha de incidente o una tarjeta ejecutiva, no una grafica.
-- Incluye como maximo 5 bloques:
-  1. encabezado con planta, maquina y formula
-  2. sello grande de estado global y severidad
-  3. bloque de salud del proceso
-  4. bloque de causa probable
-  5. bloque de accion sugerida
-- Mantén esos 5 bloques siempre en el mismo orden y con la misma proporcion visual.
-- NO generes versiones horizontales, apaisadas ni composiciones tipo banner.
-- NO cambies el layout general entre eventos; solo cambia contenido y color de estado.
-- Si el estado es estable, presenta la pieza como continuidad operacional y monitoreo.
-- Si el estado es preventivo, alto o critico, presenta la pieza como alerta priorizada.
-- Puedes usar iconos industriales simples, bandas de color, flechas, indicadores y sellos visuales.
-- Evita saturar texto. Frases cortas y contundentes.
-- Usa colores segun severidad:
-  - informativa: azul profundo + verde controlado
-  - preventiva: naranja industrial + azul oscuro
-  - alta: rojo tecnico + gris antracita
-  - critica: rojo oscuro + negro grafito
-- Conserva siempre fondo, tipografia, espaciado, iconografia y estilo general; solo varia la paleta de estado.
-- No inventes valores diferentes a los entregados.
-- Devuelve tambien una nota textual muy corta, maximo dos frases, explicando la ficha generada.
-"""
-
-    def _construir_prompt_ficha_cierre(
-        self,
-        lectura: dict[str, Any],
-        resultado_audio: dict[str, Any],
-    ) -> str:
-        """Construye un prompt de cierre ejecutivo tras la atencion del operario."""
-        return f"""
-Genera una ficha ejecutiva de cierre de incidente industrial en espanol.
-Usa la imagen tecnica solo como referencia del contexto del proceso.
-NO copies la grafica original.
-NO dibujes ejes, lineas, series temporales ni dashboards tecnicos.
-Transforma el contenido en una lamina premium de cierre para gerencia y supervisor.
-
-Objetivo:
-- resumir que paso
-- mostrar que el operario atendio el incidente
-- dejar claro que el monitoreo normal fue reanudado
-
-Datos del cierre:
-- Planta: {lectura['id_planta']}
-- Maquina: {lectura['id_maquina']}
-- Formula: {lectura['id_formula']} ({lectura['codigo_producto']})
-- Lectura de referencia: {lectura['numero']}
-- Estado global actual: {lectura['estado_global']}
-- Severidad: {lectura['severidad']}
-- Salud del proceso: {lectura['indice_salud']}/100 ({lectura['etiqueta_salud']})
-- Temperatura EMA: {lectura['temp_ema']:.1f} C ({lectura['estado_temperatura']})
-- Presion EMA: {lectura['presion_ema']:.1f} PSI ({lectura['estado_presion']})
-- Carga: {lectura['porcentaje_carga']:.1f}%
-- Causa probable: {lectura['causa_probable']}
-- Pronostico: {lectura['pronostico']} ({lectura['pronostico_nivel']})
-- Reporte del operario: {resultado_audio.get('resumen_operario', '')}
-- Intencion detectada: {resultado_audio.get('intencion', 'OTRO')}
-- Accion reportada: {resultado_audio.get('accion_detectada', '')}
-- Respuesta de Maria: {resultado_audio.get('respuesta_asistente', '')}
-- Estado final: incidente atendido y monitoreo reanudado
-
-Instrucciones visuales:
-- Diseno corporativo industrial, limpio y sobrio.
-- Usa SIEMPRE formato vertical tipo poster, proporcion retrato cercana a 4:5 o A4 vertical.
-- Mantén SIEMPRE el mismo layout de cierre, con composicion centrada y ordenada.
-- Prioriza claridad ejecutiva, trazabilidad y cierre del evento.
-- Usa 5 bloques maximo:
-  1. encabezado de cierre de incidente
-  2. sello de estado final: RESUELTO o ESTABILIZADO
-  3. resumen del incidente y severidad inicial
-  4. accion tomada por el operario
-  5. cierre con estado final y reanudacion del monitoreo
-- Mantén esos 5 bloques siempre en el mismo orden y con el mismo estilo visual.
-- NO generes versiones horizontales, apaisadas ni banners.
-- Fondo claro o muy limpio, tarjetas verticales y misma familia visual en todas las fichas.
-- Paleta base elegante: azul profundo, verde controlado y acentos naranja suaves.
-- Si la severidad del incidente fue mayor, usa acentos mas intensos pero sin cambiar el estilo general.
-- Evita saturacion de texto. Frases cortas.
-- No inventes datos ni acciones.
-- Devuelve una nota textual corta de maximo 2 frases.
-"""
-
-    def _construir_prompt_llm_operativo(
-        self,
-        lectura: dict[str, Any],
-        estado_global: str,
-        severidad: str,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        tendencia_temp: str,
-        tendencia_pres: str,
-        pronostico: str,
-        pronostico_nivel: str,
-        causa_probable: str,
-        diagnostico_operativo: str,
-    ) -> str:
-        """Arma el contexto que recibe Maria para prescripcion multimodal."""
-        return f"""
-Modo de trabajo: prescripcion operativa multimodal en tiempo real.
-
-Planta: {lectura['id_planta']}
-Maquina: {lectura['id_maquina']}
-Formula: {lectura['id_formula']} ({lectura['codigo_producto']})
-Lectura: {lectura['numero']}
-Temperatura EMA: {lectura['temp_ema']:.2f} C
-Presion EMA: {lectura['presion_ema']:.2f} PSI
-Corriente EMA: {lectura['corriente_ema']:.2f} A
-Carga: {porcentaje_carga:.1f}%
-Banda temperatura: {lectura['t_min']:.1f} a {lectura['t_max']:.1f} C
-Banda presion: {lectura['p_min']:.1f} a {lectura['p_max']:.1f} PSI
-Estado temperatura: {estado_temperatura}
-Estado presion: {estado_presion}
-Estado global: {estado_global}
-Severidad: {severidad}
-Tendencia temperatura: {tendencia_temp}
-Tendencia presion: {tendencia_pres}
-Pronostico a 5 minutos: {pronostico}
-Nivel de pronostico: {pronostico_nivel}
-Causa probable: {causa_probable}
-Diagnostico determinista de respaldo: {diagnostico_operativo}
-
-Tu tarea:
-- Analiza el contexto numerico y la imagen del panel tecnico.
-- Si el proceso esta estable, emite una prescripcion breve de continuidad operacional.
-- Si hay riesgo o desviacion, emite una prescripcion concreta para el operario.
-- Mantente fiel a la imagen y a los datos. No inventes variables ni acciones fuera del contexto.
-"""
-
-    def _construir_prompt_explicacion_evento(self, lectura: dict[str, Any]) -> str:
-        """Construye el prompt multimodal para explicar el evento al usuario."""
-        return f"""
-Modo capacitacion multimodal.
-
-Explica en espanol, de forma clara y corta, que esta pasando en esta lectura de proceso.
-Usa la imagen tecnica como apoyo para mencionar tendencia visual y relacionarla con los datos.
-
-Datos del evento:
-- Planta: {lectura['id_planta']}
-- Maquina: {lectura['id_maquina']}
-- Formula: {lectura['id_formula']} ({lectura['codigo_producto']})
-- Lectura: {lectura['numero']}
-- Estado global: {lectura['estado_global']}
-- Severidad: {lectura['severidad']}
-- Salud del proceso: {lectura['indice_salud']}/100 ({lectura['etiqueta_salud']})
-- Temperatura EMA: {lectura['temp_ema']:.1f} C ({lectura['estado_temperatura']})
-- Presion EMA: {lectura['presion_ema']:.1f} PSI ({lectura['estado_presion']})
-- Carga: {lectura['porcentaje_carga']:.1f}%
-- Tendencia temperatura: {lectura['tendencia_temp']}
-- Tendencia presion: {lectura['tendencia_pres']}
-- Pronostico a 5 min: {lectura['pronostico']} ({lectura['pronostico_nivel']})
-- Causa probable: {lectura['causa_probable']}
-
-Responde con maximo 3 oraciones:
-1. que variable o condicion destaca
-2. que patron visual/tendencia se observa
-3. por que importa operativamente
-"""
 
     def _generar_prescripcion_maria(
         self,
@@ -1634,7 +1278,7 @@ Responde con maximo 3 oraciones:
         video_bytes: Optional[bytes] = None,
     ) -> str:
         """Obtiene la prescripcion multimodal de Maria con fallback determinista."""
-        prompt = self._construir_prompt_llm_operativo(
+        prompt = ConstructorPrompts.prompt_llm_operativo(
             lectura=lectura,
             estado_global=estado_global,
             severidad=severidad,
@@ -1669,7 +1313,7 @@ Responde con maximo 3 oraciones:
                 variable=variable,
                 alerta_id=alerta_id,
             )
-            prescripcion = self._limpiar_texto_llm(prescripcion)
+            prescripcion = AnalizadorTelemetria.limpiar_texto_llm(prescripcion)
             if prescripcion:
                 logger.debug(
                     "[A/B] Prescripción generada con variante %s | Máq: %s | Var: %s",
@@ -1679,245 +1323,6 @@ Responde con maximo 3 oraciones:
         except Exception as e:
             logger.error("Fallo en loop agentico de Maria: %s", e, exc_info=True)
         return diagnostico_operativo
-
-    def _limpiar_texto_llm(self, texto: str) -> str:
-        """Limpia marcas simples para reutilizar el texto del LLM en chat y audio."""
-        texto_limpio = (texto or "").strip()
-        reemplazos = ['**', '*', '[', ']', '#']
-        for marca in reemplazos:
-            texto_limpio = texto_limpio.replace(marca, '')
-        return " ".join(texto_limpio.split())
-
-    def _accion_sugerida_ficha(self, lectura: dict[str, Any]) -> str:
-        """Construye una accion sugerida breve para la ficha visual IA."""
-        estado_temp = lectura['estado_temperatura']
-        estado_pres = lectura['estado_presion']
-        carga = float(lectura['porcentaje_carga'])
-
-        if estado_temp == 'NORMAL' and estado_pres == 'NORMAL':
-            if lectura['pronostico_nivel'] == 'BAJO':
-                return 'Mantener operacion y monitoreo normal del proceso.'
-            return 'Continuar monitoreo reforzado y verificar tendencia de variables.'
-
-        if estado_temp == 'BAJO' and estado_pres == 'BAJO':
-            if carga >= 85:
-                return 'Reducir alimentacion, revisar linea de vapor y estabilizar carga.'
-            return 'Revisar suministro de vapor y corregir dosificacion termica.'
-
-        if estado_pres == 'BAJO':
-            return 'Verificar valvula y suministro de vapor antes de continuar.'
-
-        if estado_pres == 'ALTO':
-            return 'Reducir ingreso de vapor y validar control de presion del acondicionador.'
-
-        if estado_temp == 'BAJO':
-            return 'Aumentar energia termica de forma controlada y revisar acondicionamiento.'
-
-        if estado_temp == 'ALTO':
-            return 'Disminuir energia termica y evitar sobrecoccion del producto.'
-
-        return 'Mantener seguimiento operativo y confirmar estabilidad.'
-
-    def _estado_en_banda(self, valor: float, limite_min: float, limite_max: float) -> str:
-        """Clasifica una variable respecto a su banda operativa."""
-        if valor < limite_min:
-            return 'BAJO'
-        if valor > limite_max:
-            return 'ALTO'
-        return 'NORMAL'
-
-    def _construir_diagnostico_operativo(
-        self,
-        lectura: dict[str, Any],
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-    ) -> str:
-        """Genera un mensaje corto con criterio operativo para texto y audio."""
-        temp = lectura['temp_ema']
-        pres = lectura['presion_ema']
-        maquina = lectura['id_maquina']
-
-        if estado_temperatura == 'NORMAL' and estado_presion == 'NORMAL':
-            return (
-                f"Proceso estable en la maquina {maquina}. "
-                f"La temperatura esta normal en {temp:.1f} grados y la presion esta normal en {pres:.1f} PSI. "
-                "Mantenga la operacion y continue monitoreo."
-            )
-
-        if estado_presion == 'BAJO' and estado_temperatura == 'BAJO':
-            if porcentaje_carga >= 90:
-                return (
-                    f"Alerta de presion y temperatura bajas en la maquina {maquina}. "
-                    f"La carga esta alta en {porcentaje_carga:.1f} por ciento, asi que no aumente vapor de forma brusca. "
-                    "Reduzca alimentacion, verifique linea de vapor y estabilice la maquina."
-                )
-            return (
-                f"Alerta de presion y temperatura bajas en la maquina {maquina}. "
-                "Esto sugiere deficiencia de vapor o dosificacion insuficiente. "
-                "Revise valvula, confirme suministro de vapor y corrija antes de continuar."
-            )
-
-        if estado_presion == 'BAJO':
-            if porcentaje_carga >= 90:
-                return (
-                    f"Alerta de presion baja en la maquina {maquina}. "
-                    f"La carga actual esta elevada en {porcentaje_carga:.1f} por ciento. "
-                    "Baje alimentacion, revise la linea de vapor y evite forzar el equipo."
-                )
-            return (
-                f"Alerta de presion baja en la maquina {maquina}. "
-                f"La presion actual esta en {pres:.1f} PSI, por debajo de la banda operativa. "
-                "Revise suministro de vapor y ajuste la dosificacion de forma controlada."
-            )
-
-        if estado_presion == 'ALTO':
-            return (
-                f"Alerta de presion alta en la maquina {maquina}. "
-                f"La presion actual esta en {pres:.1f} PSI y supera la banda permitida. "
-                "Modere el ingreso de vapor y verifique que no haya sobrepresion en el acondicionador."
-            )
-
-        if estado_temperatura == 'BAJO':
-            return (
-                f"Alerta de temperatura baja en la maquina {maquina}. "
-                f"La temperatura actual esta en {temp:.1f} grados y no alcanza la banda de formula. "
-                "Revise vapor, tiempo de acondicionamiento y condiciones de alimentacion."
-            )
-
-        if estado_temperatura == 'ALTO':
-            return (
-                f"Alerta de temperatura alta en la maquina {maquina}. "
-                f"La temperatura actual esta en {temp:.1f} grados y supera la banda permitida. "
-                "Disminuya energia termica, revise vapor y evite sobrecoccion del producto."
-            )
-
-        return (
-            f"Lectura operativa de la maquina {maquina}. "
-            f"Temperatura en {temp:.1f} grados y presion en {pres:.1f} PSI. "
-            "Mantenga monitoreo del proceso."
-        )
-
-    def _clasificar_contexto_global(
-        self,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        pronostico_nivel: str,
-    ) -> tuple[str, str]:
-        """Define un estado global y severidad de la lectura."""
-        if estado_temperatura == 'NORMAL' and estado_presion == 'NORMAL':
-            if pronostico_nivel == 'ALTO' or porcentaje_carga >= 90:
-                return 'BAJO VIGILANCIA', 'PREVENTIVA'
-            if pronostico_nivel == 'MEDIO':
-                return 'BAJO VIGILANCIA', 'PREVENTIVA'
-            return 'ESTABLE', 'INFORMATIVA'
-
-        if (
-            estado_temperatura != 'NORMAL'
-            and estado_presion != 'NORMAL'
-            and (porcentaje_carga >= 85 or 'ALTO' in [estado_temperatura, estado_presion])
-        ):
-            return 'EN RIESGO', 'CRITICA'
-
-        if estado_temperatura != 'NORMAL' and estado_presion != 'NORMAL':
-            return 'EN RIESGO', 'ALTA'
-
-        if porcentaje_carga >= 95:
-            return 'EN RIESGO', 'ALTA'
-
-        return 'BAJO VIGILANCIA', 'PREVENTIVA'
-
-    def _inferir_causa_probable(
-        self,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        tendencia_temp: str,
-        tendencia_pres: str,
-        pronostico_nivel: str,
-    ) -> str:
-        """Infiere una causa probable legible para operacion."""
-        if estado_temperatura == 'NORMAL' and estado_presion == 'NORMAL':
-            if 'deterioro progresivo' in tendencia_temp or 'deterioro progresivo' in tendencia_pres:
-                return 'recuperacion parcial tras intervencion operativa reciente'
-            if porcentaje_carga >= 90:
-                return 'carga operativa elevada con variables aun dentro de banda'
-            if pronostico_nivel == 'MEDIO':
-                return 'estabilidad aparente con tendencia de degradacion temprana'
-            return 'operacion dentro de parametros de formula'
-
-        if estado_temperatura == 'BAJO' and estado_presion == 'BAJO':
-            if porcentaje_carga >= 90:
-                return 'caida de suministro de vapor combinada con sobrecarga del equipo'
-            return 'caida de suministro de vapor o dosificacion insuficiente de energia termica'
-
-        if estado_presion == 'BAJO':
-            if porcentaje_carga >= 90:
-                return 'sobrecarga del equipo con presion insuficiente para sostener el acondicionamiento'
-            if 'cayendo' in tendencia_pres or 'deterioro progresivo' in tendencia_pres:
-                return 'caida de suministro de vapor o valvula con apertura insuficiente'
-            return 'dosificacion insuficiente de vapor en el acondicionador'
-
-        if estado_presion == 'ALTO':
-            if estado_temperatura == 'ALTO':
-                return 'exceso de ingreso de vapor con riesgo de sobrecalentamiento del producto'
-            return 'sobrepresion por exceso de vapor o control agresivo de la valvula'
-
-        if estado_temperatura == 'BAJO':
-            if 'cayendo' in tendencia_temp:
-                return 'perdida progresiva de energia termica o tiempo de acondicionamiento corto'
-            return 'energia termica insuficiente para la formula actual'
-
-        if estado_temperatura == 'ALTO':
-            if porcentaje_carga >= 85:
-                return 'sobrecalentamiento del proceso bajo alta carga operativa'
-            return 'exceso de energia termica o retencion excesiva en el acondicionador'
-
-        return 'condicion operativa en observacion'
-
-    def _calcular_indice_salud(
-        self,
-        estado_temperatura: str,
-        estado_presion: str,
-        porcentaje_carga: float,
-        tendencia_temp: str,
-        tendencia_pres: str,
-        pronostico: str,
-    ) -> tuple[int, str]:
-        """Calcula un indice explicable de salud operacional del proceso."""
-        score = 100
-
-        penalizaciones = {
-            'NORMAL': 0,
-            'BAJO': 18,
-            'ALTO': 16,
-        }
-        score -= penalizaciones.get(estado_temperatura, 0)
-        score -= penalizaciones.get(estado_presion, 0)
-
-        if porcentaje_carga >= 90:
-            score -= 15
-        elif porcentaje_carga >= 75:
-            score -= 8
-
-        if 'deterioro progresivo' in tendencia_temp or 'cayendo' in tendencia_temp:
-            score -= 8
-        if 'deterioro progresivo' in tendencia_pres or 'cayendo' in tendencia_pres:
-            score -= 8
-        if 'riesgo activo' in pronostico:
-            score -= 15
-        elif 'riesgo de salir de banda' in pronostico:
-            score -= 10
-
-        score = max(0, min(100, int(round(score))))
-        if score >= 85:
-            return score, 'ESTABLE'
-        if score >= 65:
-            return score, 'VIGILANCIA'
-        if score >= 40:
-            return score, 'RIESGO'
-        return score, 'CRITICO'
 
     def _calcular_predictor_incidente(
         self,
@@ -2020,107 +1425,6 @@ Responde con maximo 3 oraciones:
 
         return primer_id
 
-    def _resumir_alertas_confirmadas(self, alertas: list[Any]) -> str:
-        """Resume alertas confirmadas en una linea legible para el operario."""
-        activas = [a for a in alertas if not a.es_retorno_normal]
-        if not activas:
-            return ''
-        etiquetas = [a.tipo_alerta.value.replace('_', ' ') for a in activas]
-        return ', '.join(etiquetas)
-
-    def _analizar_tendencia(
-        self,
-        historial_reciente: list[dict[str, Any]],
-        columna: str,
-        limite_min: float,
-        limite_max: float,
-    ) -> dict[str, str]:
-        """Analiza la tendencia reciente con una heuristica simple y explicable."""
-        if len(historial_reciente) < 3:
-            return {
-                'mensaje': 'sin suficientes lecturas para tendencia',
-                'audio': 'sin suficientes lecturas para establecer tendencia',
-            }
-
-        ventana = historial_reciente[-5:]
-        valores = [float(item[columna]) for item in ventana]
-        delta = valores[-1] - valores[0]
-        rango = max(limite_max - limite_min, 1.0)
-        pendiente_relativa = delta / rango
-
-        if valores[-1] < limite_min:
-            return {
-                'mensaje': 'muestra deterioro progresivo por debajo de banda',
-                'audio': 'muestra deterioro progresivo por debajo de banda',
-            }
-        if valores[-1] > limite_max:
-            return {
-                'mensaje': 'se mantiene por encima de banda operativa',
-                'audio': 'se mantiene por encima de banda operativa',
-            }
-        if pendiente_relativa <= -0.18:
-            return {
-                'mensaje': 'viene cayendo en las ultimas lecturas',
-                'audio': 'viene cayendo en las ultimas lecturas',
-            }
-        if pendiente_relativa >= 0.18:
-            return {
-                'mensaje': 'viene aumentando de forma sostenida',
-                'audio': 'viene aumentando de forma sostenida',
-            }
-        return {
-            'mensaje': 'permanece estable en la ventana reciente',
-            'audio': 'permanece estable en la ventana reciente',
-        }
-
-    def _construir_pronostico(
-        self,
-        tendencia_temp: dict[str, str],
-        tendencia_pres: dict[str, str],
-        estado_temperatura: str,
-        estado_presion: str,
-    ) -> dict[str, str]:
-        """Construye un pronostico corto para los proximos minutos."""
-        if estado_temperatura != 'NORMAL' or estado_presion != 'NORMAL':
-            return {
-                'nivel': 'ALTO',
-                'mensaje': 'riesgo alto de continuar fuera de banda en los proximos 5 minutos',
-                'audio': 'riesgo alto de continuar fuera de banda en los proximos cinco minutos',
-            }
-
-        if 'cayendo' in tendencia_pres['mensaje']:
-            return {
-                'nivel': 'MEDIO',
-                'mensaje': 'riesgo medio de salir de banda por presion baja en los proximos 5 minutos',
-                'audio': 'riesgo medio de salir de banda por presion baja en los proximos cinco minutos',
-            }
-
-        if 'deterioro progresivo' in tendencia_temp['mensaje'] or 'cayendo' in tendencia_temp['mensaje']:
-            return {
-                'nivel': 'MEDIO',
-                'mensaje': 'riesgo medio de salir de banda por temperatura baja en los proximos 5 minutos',
-                'audio': 'riesgo medio de salir de banda por temperatura baja en los proximos cinco minutos',
-            }
-
-        if 'aumentando' in tendencia_temp['mensaje']:
-            return {
-                'nivel': 'MEDIO',
-                'mensaje': 'riesgo medio de acercamiento al limite superior de temperatura en 5 minutos',
-                'audio': 'riesgo medio de acercamiento al limite superior de temperatura en cinco minutos',
-            }
-
-        if 'aumentando' in tendencia_pres['mensaje']:
-            return {
-                'nivel': 'MEDIO',
-                'mensaje': 'riesgo medio de acercamiento al limite superior de presion en 5 minutos',
-                'audio': 'riesgo medio de acercamiento al limite superior de presion en cinco minutos',
-            }
-
-        return {
-            'nivel': 'BAJO',
-            'mensaje': 'riesgo bajo de salir de banda en los proximos 5 minutos',
-            'audio': 'riesgo bajo de salir de banda en los proximos cinco minutos',
-        }
 
 
 def main() -> None:
