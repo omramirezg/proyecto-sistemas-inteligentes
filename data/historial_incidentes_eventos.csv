@@ -1,0 +1,42 @@
+id_evento,id_incidente,timestamp,tipo_evento,descripcion,payload_json
+1,1,2026-03-18T22:20:22.182461,incidente_abierto,Incidente abierto para gestion operativa.,"{""chat_id"": 7286226424, ""lectura"": 2, ""maquina"": ""301"", ""severidad"": ""ALTA""}"
+2,1,2026-03-18T22:20:22.182461,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OBSERVACION_OPERATIVA"", ""urgencia"": ""ALTO"", ""senal_resolucion"": ""NO""}"
+3,1,2026-03-18T22:20:23.385958,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Entendido. La baja presión y temperatura confirman la falla en la Máquina 301. Por favor, verifica el suministro de vapor o la dosificación de energía térmica según la causa probable."", ""senal_resolucion"": ""NO""}"
+4,1,2026-03-18T22:20:23.387665,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+5,1,2026-03-18T22:21:12.765325,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OBSERVACION_OPERATIVA"", ""urgencia"": ""ALTO"", ""senal_resolucion"": ""NO""}"
+6,1,2026-03-18T22:21:14.002180,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Entendido, el problema persiste y el vapor es la causa. Por favor, verifica el suministro de vapor en la línea principal y la válvula de entrada a la Máquina 301."", ""senal_resolucion"": ""NO""}"
+7,1,2026-03-18T22:21:14.003192,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+8,1,2026-03-18T22:21:42.770088,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OBSERVACION_OPERATIVA"", ""urgencia"": ""ALTO"", ""senal_resolucion"": ""NO""}"
+9,1,2026-03-18T22:21:43.990360,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Entendido. Dado que la verificación no solucionó el problema, por favor, revisa el suministro de vapor y la dosificación de energía térmica. ¿Hay alguna anomalía visible en esos puntos?"", ""senal_resolucion"": ""NO""}"
+10,1,2026-03-18T22:21:43.990360,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+11,1,2026-03-18T22:22:09.587699,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OTRO"", ""urgencia"": ""MEDIO"", ""senal_resolucion"": ""NO""}"
+12,1,2026-03-18T22:22:10.805359,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""No pude interpretar bien la nota de voz. Repitala indicando la novedad o la accion realizada."", ""senal_resolucion"": ""NO""}"
+13,1,2026-03-18T22:22:10.805359,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+14,1,2026-03-18T22:22:14.917044,confirmacion_solucion,El operario confirmo por boton que la novedad fue solucionada.,{}
+15,1,2026-03-18T22:22:36.951530,ficha_y_correo_enviados,La ficha de cierre fue enviada por Telegram y correo al supervisor.,"{""nota_nano_banana"": ""Aquí tienes la ficha ejecutiva de cierre del incidente industrial, diseñada para gerencia y supervisores, con un enfoque en la claridad y el resumen de la situación.""}"
+16,2,2026-03-18T22:24:41.946384,incidente_abierto,Incidente abierto para gestion operativa.,"{""chat_id"": 7286226424, ""lectura"": 4, ""maquina"": ""301"", ""severidad"": ""ALTA""}"
+17,2,2026-03-18T22:24:41.947647,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""MANTENIMIENTO"", ""urgencia"": ""ALTO"", ""senal_resolucion"": ""NO""}"
+18,2,2026-03-18T22:24:43.617307,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Entendido. Por favor, verifique nuevamente el suministro de vapor y la dosificación de energía térmica. Manténganos informados sobre cualquier cambio."", ""senal_resolucion"": ""NO""}"
+19,2,2026-03-18T22:24:43.618019,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+20,2,2026-03-18T22:25:16.997431,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OBSERVACION_OPERATIVA"", ""urgencia"": ""ALTO"", ""senal_resolucion"": ""NO""}"
+21,2,2026-03-18T22:25:18.749940,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Entendido. Dado que el suministro de vapor sigue fallando, por favor, revisa la válvula de control de vapor y reporta su estado. ¿Necesitas que se escale a un técnico de mantenimiento?"", ""senal_resolucion"": ""NO""}"
+22,2,2026-03-18T22:25:18.759491,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+23,2,2026-03-18T22:25:40.563916,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""ACCION_EJECUTADA"", ""urgencia"": ""BAJO"", ""senal_resolucion"": ""SI""}"
+24,2,2026-03-18T22:25:42.893475,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Excelente noticia. Procederemos a cerrar la alerta y monitorear la estabilidad de la máquina 301."", ""senal_resolucion"": ""SI""}"
+25,2,2026-03-18T22:26:01.882263,ficha_y_correo_enviados,La ficha de cierre fue enviada por Telegram y correo al supervisor.,"{""nota_nano_banana"": ""Aquí tienes la ficha ejecutiva de cierre de incidente, diseñada para gerencia y supervisión. Destaca la resolución del problema y la reanudación del monitoreo.\n**FICHA DE CIERRE DE INCIDENTE INDUSTRIAL**""}"
+26,2,2026-03-18T22:26:01.897821,monitoreo_reanudado,El monitoreo automatico fue reanudado tras cierre por audio.,{}
+27,3,2026-03-21T23:21:13.105094,incidente_abierto,Incidente abierto para gestion operativa.,"{""chat_id"": 7286226424, ""lectura"": 7, ""maquina"": ""301"", ""severidad"": ""ALTA""}"
+28,3,2026-03-21T23:21:13.105729,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OTRO"", ""urgencia"": ""MEDIO"", ""senal_resolucion"": ""NO""}"
+29,3,2026-03-21T23:21:14.669463,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""No pude interpretar bien la nota de voz. Repitala indicando la novedad o la accion realizada."", ""senal_resolucion"": ""NO""}"
+30,3,2026-03-21T23:21:14.669463,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+31,3,2026-03-21T23:21:44.465151,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OTRO"", ""urgencia"": ""MEDIO"", ""senal_resolucion"": ""NO""}"
+32,3,2026-03-21T23:21:46.198156,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""No pude interpretar bien la nota de voz. Repitala indicando la novedad o la accion realizada."", ""senal_resolucion"": ""NO""}"
+33,3,2026-03-21T23:21:46.199671,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+34,4,2026-03-22T09:46:56.795204,incidente_abierto,Incidente abierto para gestion operativa.,"{""chat_id"": 7286226424, ""lectura"": 3, ""maquina"": ""301"", ""severidad"": ""ALTA""}"
+35,4,2026-03-22T09:46:56.796305,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OTRO"", ""urgencia"": ""MEDIO"", ""senal_resolucion"": ""NO""}"
+36,4,2026-03-22T09:46:58.895491,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""No pude interpretar bien la nota de voz. Repitala indicando la novedad o la accion realizada."", ""senal_resolucion"": ""NO""}"
+37,4,2026-03-22T09:46:58.896504,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}
+38,5,2026-03-22T11:22:07.433503,incidente_abierto,Incidente abierto para gestion operativa.,"{""chat_id"": 7286226424, ""lectura"": 6, ""maquina"": ""301"", ""severidad"": ""ALTA""}"
+39,5,2026-03-22T11:22:07.434520,audio_operario,El operario envio una nota de voz para actualizar el incidente.,"{""intencion"": ""OTRO"", ""urgencia"": ""MEDIO"", ""senal_resolucion"": ""NO""}"
+40,5,2026-03-22T11:22:09.436260,respuesta_maria,Maria respondio al operario con apoyo operativo.,"{""respuesta"": ""Tarde mas de lo esperado en interpretar la nota de voz. Si el problema ya se soluciono, pulsa el boton de confirmacion o envia una nota mas corta."", ""senal_resolucion"": ""NO""}"
+41,5,2026-03-22T11:22:09.438277,espera_confirmacion,El sistema queda pausado esperando confirmacion de solucion.,{}

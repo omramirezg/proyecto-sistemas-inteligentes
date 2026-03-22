@@ -17,6 +17,7 @@ matplotlib>=3.7
 google-cloud-aiplatform>=1.38
 google-cloud-texttospeech>=2.14
 google-cloud-storage>=2.10
+google-cloud-pubsub>=2.21
 google-genai>=1.0
 
 # ============================
@@ -28,6 +29,12 @@ python-telegram-bot>=21.0
 # Reportes PDF
 # ============================
 fpdf2>=2.7
+pillow>=10.0
+
+# ============================
+# HTTP
+# ============================
+requests>=2.31
 
 # ============================
 # Testing
