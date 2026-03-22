@@ -218,7 +218,15 @@ class WorkerPeletizacion:
         # Determinar la variable principal en alerta (para few-shot y shadow logging)
         variable_principal = ""
         for alerta in alertas_motor:
-            nombre = str(alerta.get('nombre', '') or alerta.get('tipo', '')).upper()
+            # Alerta puede ser dataclass (motor_reglas.Alerta) o dict
+            if hasattr(alerta, 'variable'):
+                nombre = str(alerta.variable).upper()
+            elif hasattr(alerta, 'tipo_alerta'):
+                nombre = str(alerta.tipo_alerta).upper()
+            elif isinstance(alerta, dict):
+                nombre = str(alerta.get('nombre', '') or alerta.get('tipo', '')).upper()
+            else:
+                nombre = str(alerta).upper()
             if 'TEMP' in nombre:
                 variable_principal = "temp_acond"
                 break

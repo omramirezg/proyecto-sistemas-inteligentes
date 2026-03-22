@@ -95,6 +95,9 @@ class GeminiProvider(LLMProvider):
         self._fallos_consecutivos_gemini: int   = 0
         self._ts_apertura_circuito:       float = 0.0
         self._gemma = None   # GemmaLocalProvider — lazy init para no importar si no se usa
+        # Cooldown global tras 429 — evita hammering cuando la cuota está agotada
+        self._ts_ultimo_429: float = 0.0
+        self._COOLDOWN_TRAS_429: float = 60.0  # segundos sin intentar tras un 429
         logger.info(
             "GeminiProvider configurado: modelo=%s, location=%s",
             self.config.gemini_model, self.config.gemini_location
@@ -345,6 +348,19 @@ class GeminiProvider(LLMProvider):
                 prompt_texto, feedback_loop, id_maquina, variable
             )
 
+        # Cooldown tras 429: si la cuota se agotó recientemente, no intentar.
+        # Esto evita el ciclo vicioso de retry → 429 → retry que bloquea todo.
+        _seg_desde_429 = time.time() - self._ts_ultimo_429
+        if _seg_desde_429 < self._COOLDOWN_TRAS_429:
+            _restante = self._COOLDOWN_TRAS_429 - _seg_desde_429
+            logger.info(
+                "[AGENTE] Cooldown activo tras 429 (%.0fs restantes). "
+                "Usando fallback determinista.", _restante,
+            )
+            return self._prescripcion_con_gemma(
+                prompt_texto, feedback_loop, id_maquina, variable
+            )
+
         try:
             from google.genai import types
 
@@ -455,8 +471,8 @@ class GeminiProvider(LLMProvider):
             )
 
             ultimo_texto: str = ""
-            _MAX_REINTENTOS_429 = 3
-            _ESPERA_BASE_429    = 8   # segundos base — duplica con cada reintento
+            _MAX_REINTENTOS_429 = 2
+            _ESPERA_BASE_429    = 5   # segundos base — duplica con cada reintento
 
             for iteracion in range(1, max_iteraciones + 1):
                 logger.info("[AGENTE] Iteración %d/%d", iteracion, max_iteraciones)
@@ -534,7 +550,13 @@ class GeminiProvider(LLMProvider):
             # 429 = cuota agotada (Gemini está UP) — NO abrir el circuit breaker.
             # El circuito solo se abre por fallos reales: red, auth, servidor caído.
             _es_cuota = '429' in str(e) or 'RESOURCE_EXHAUSTED' in str(e)
-            if not _es_cuota:
+            if _es_cuota:
+                self._ts_ultimo_429 = time.time()
+                logger.info(
+                    "[AGENTE] Cooldown de %.0fs activado tras 429.",
+                    self._COOLDOWN_TRAS_429,
+                )
+            else:
                 self._registrar_fallo_gemini()
             return self._prescripcion_con_gemma(
                 prompt_texto, feedback_loop, id_maquina, variable
