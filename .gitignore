@@ -17,6 +17,17 @@ venv/
 
 # Logs
 logs/*.log
+logs/*.log.*
+logs/*.html
+
+# Claude Code
+.claude/
+
+# Backups
+backups/
+
+# Office temp files
+~$*
 
 # OS
 .DS_Store
