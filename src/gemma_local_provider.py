@@ -37,7 +37,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Segundos de espera máxima a Ollama antes de abandonar
-_OLLAMA_TIMEOUT_SEG: int = 30
+_OLLAMA_TIMEOUT_SEG: int = 90
 
 # System prompt compacto — cabe en el contexto de 8K de Gemma
 # (vs. el bloque fijo completo de ~3K tokens del proveedor Gemini)

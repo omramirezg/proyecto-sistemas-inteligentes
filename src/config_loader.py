@@ -104,7 +104,7 @@ class ConfigLoader:
     @property
     def gemma_modelo_local(self) -> str:
         """Nombre del modelo en Ollama a usar como fallback."""
-        return os.getenv('GEMMA_LOCAL_MODEL', 'gemma3:2b').strip()
+        return os.getenv('GEMMA_LOCAL_MODEL', 'gemma2:2b').strip()
 
     @property
     def gemma_ollama_url(self) -> str:
