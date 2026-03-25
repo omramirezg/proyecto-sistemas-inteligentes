@@ -39,6 +39,7 @@ from memoria_incidentes import MemoriaIncidentes
 from analizador_telemetria import AnalizadorTelemetria
 from constructor_prompts import ConstructorPrompts
 from constructor_mensajes import ConstructorMensajes
+from feature_store import FeatureStore
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ class WorkerPeletizacion:
         )
         self.shadow_tester    = ShadowTester(self.llm, self.config)
         self.generador_video  = GeneradorVideoTelemetria(ventana_lecturas=30, n_frames=10)
+        self.feature_store    = FeatureStore(ventana=30)
         self._ciclos_sin_deriva = 0   # Contador para chequeo periódico de deriva
         self.email_service = EmailService(self.config)
         self.memoria_incidentes = MemoriaIncidentes(self.config)
@@ -296,6 +298,7 @@ class WorkerPeletizacion:
         # Alimentar el buffer del video en cada lectura (no solo en alertas)
         # para que el GIF siempre tenga contexto temporal actualizado.
         self.generador_video.agregar_lectura(lectura)
+        self.feature_store.agregar_lectura(lectura)
 
         destinatarios = self._obtener_destinatarios(lectura['id_maquina'])
         if not destinatarios:
@@ -1489,6 +1492,12 @@ class WorkerPeletizacion:
             causa_probable=causa_probable,
             diagnostico_operativo=diagnostico_operativo,
         )
+        # Inyectar bloque enriquecido del Feature Store (Capa 4).
+        # Contiene: tasa de cambio, tendencia, correlaciones, matriz 3x3
+        # y anomalia global para que Gemini razone sobre la dinamica temporal.
+        bloque_features = self.feature_store.construir_bloque_prompt()
+        if bloque_features:
+            prompt = f"{prompt}\n\n{bloque_features}"
         try:
             # Loop agentico con few-shot dinámico desde feedback real del operario.
             # ShadowTester despacha al modo configurado (off / shadow / ab):
