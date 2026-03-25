@@ -775,38 +775,42 @@ class WorkerPeletizacion:
             inputs_por_chat.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
             inputs_por_chat[cid]['fotos'].append(ev)
 
-        # Procesar cada chat_id
+        # Procesar cada chat_id con ventana de recolección
         for chat_id, inputs in inputs_por_chat.items():
             total = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
+            if total == 0:
+                continue
 
-            if total > 1:
-                # DEBOUNCE: múltiples inputs → esperar 8s por más, luego unificar
-                await self.telegram.enviar_mensaje_simple(
-                    chat_id,
-                    f"Recibidos {total} mensajes. Esperando 8 segundos por si envias mas...",
-                )
-                await asyncio.sleep(8)
+            # SIEMPRE esperar 5 segundos para recoger más mensajes del operario
+            await self.telegram.enviar_mensaje_simple(
+                chat_id,
+                "Recibido. Esperando 5 segundos por si envias algo mas...",
+            )
+            await asyncio.sleep(5)
 
-                # Recoger posibles nuevos mensajes durante la espera
-                eventos_extra = await self.telegram.obtener_eventos_chat()
-                for ev in eventos_extra['audio_operario']:
-                    if int(ev['chat_id']) == chat_id:
-                        inputs['audios'].append(ev)
-                for ev in eventos_extra['texto_operario']:
-                    if int(ev['chat_id']) == chat_id:
-                        inputs['textos'].append(ev)
-                for ev in eventos_extra['foto_operario']:
-                    if int(ev['chat_id']) == chat_id:
-                        inputs['fotos'].append(ev)
+            # Recoger mensajes que llegaron durante la espera
+            eventos_extra = await self.telegram.obtener_eventos_chat()
+            for ev in eventos_extra['audio_operario']:
+                if int(ev['chat_id']) == chat_id:
+                    inputs['audios'].append(ev)
+            for ev in eventos_extra['texto_operario']:
+                if int(ev['chat_id']) == chat_id:
+                    inputs['textos'].append(ev)
+            for ev in eventos_extra['foto_operario']:
+                if int(ev['chat_id']) == chat_id:
+                    inputs['fotos'].append(ev)
 
-                total_final = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
+            total_final = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
+
+            if total_final > 1:
+                # Múltiples inputs → procesar unificado
                 await self.telegram.enviar_mensaje_simple(
                     chat_id,
                     f"Procesando {total_final} mensajes juntos con Gemini.",
                 )
                 await self._procesar_multimodal_unificado(chat_id, inputs)
-            elif total == 1:
-                # Un solo input → procesar individualmente (igual que antes)
+            else:
+                # Un solo input después de la espera → procesar individualmente
                 if inputs['audios']:
                     await self._procesar_audio_operario(inputs['audios'][0])
                 elif inputs['textos']:
