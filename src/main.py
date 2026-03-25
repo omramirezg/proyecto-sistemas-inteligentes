@@ -781,11 +781,7 @@ class WorkerPeletizacion:
             if total == 0:
                 continue
 
-            # SIEMPRE esperar 10 segundos para recoger más mensajes del operario
-            await self.telegram.enviar_mensaje_simple(
-                chat_id,
-                "Recibido. Esperando 10 segundos por si envias algo mas...",
-            )
+            # Ventana de recolección silenciosa: esperar 10s para agrupar inputs
             await asyncio.sleep(10)
 
             # Recoger mensajes que llegaron durante la espera
