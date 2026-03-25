@@ -1550,8 +1550,52 @@ class WorkerPeletizacion:
         return "\n".join(lineas)
 
     def _limpiar_historial_chat(self, chat_id: int) -> None:
-        """Limpia el historial al cerrar un incidente."""
+        """Persiste la conversación al historial general y luego limpia la memoria."""
+        historial = self._historial_conversacion.get(chat_id, [])
+        if historial:
+            self._persistir_conversacion(chat_id, historial)
         self._historial_conversacion.pop(chat_id, None)
+
+    def _persistir_conversacion(self, chat_id: int, historial: list[dict]) -> None:
+        """Guarda la conversación completa en CSV para RAG/RLHF futuro."""
+        import csv
+        from datetime import datetime
+
+        archivo = os.path.join(self.config.data_dir, 'historial_conversaciones.csv')
+        existe = os.path.exists(archivo)
+
+        incidente_info = self._incidentes_chat.get(chat_id, {})
+        incidente_id = incidente_info.get('id_incidente', 0)
+        lectura = incidente_info.get('lectura', {})
+
+        try:
+            with open(archivo, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                if not existe:
+                    writer.writerow([
+                        'timestamp', 'incidente_id', 'chat_id',
+                        'id_maquina', 'id_formula', 'turno',
+                        'rol', 'contenido', 'n_mensajes_total',
+                    ])
+                n_total = len(historial)
+                for msg in historial:
+                    writer.writerow([
+                        datetime.now().isoformat(),
+                        incidente_id,
+                        chat_id,
+                        lectura.get('id_maquina', ''),
+                        lectura.get('id_formula', ''),
+                        len(historial) // 2,  # pares de intercambio
+                        msg['rol'],
+                        msg['contenido'],
+                        n_total,
+                    ])
+            logger.info(
+                "[MEMORIA] Conversación persistida — incidente=%s | %d mensajes | archivo=%s",
+                incidente_id, len(historial), archivo,
+            )
+        except Exception as e:
+            logger.error("[MEMORIA] Error persistiendo conversación: %s", e)
 
     def _chat_pausado(self, chat_id: int) -> bool:
         """Indica si un chat de operario tiene el flujo automatico pausado."""

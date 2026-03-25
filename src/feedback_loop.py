@@ -230,7 +230,63 @@ class FeedbackLoop:
                 )
                 lineas.append(f"Prescripción fallida: {a['prescripcion_fallida']}")
 
+        # Agregar conversaciones pasadas relevantes si existen
+        conv_block = self._obtener_conversaciones_relevantes(id_maquina)
+        if conv_block:
+            lineas.append(conv_block)
+
         return "\n".join(lineas)
+
+    def _obtener_conversaciones_relevantes(
+        self, id_maquina: str, max_conv: int = 2,
+    ) -> str:
+        """Recupera conversaciones pasadas exitosas para esta máquina (RAG).
+
+        Lee del historial_conversaciones.csv y extrae las últimas conversaciones
+        completas para dar contexto al LLM sobre cómo se resolvieron incidentes
+        anteriores en esta misma máquina.
+        """
+        archivo = self._data_dir / 'historial_conversaciones.csv'
+        if not archivo.exists():
+            return ""
+
+        try:
+            conversaciones: dict[str, list] = {}
+            with open(archivo, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if str(row.get('id_maquina', '')) != str(id_maquina):
+                        continue
+                    inc_id = row.get('incidente_id', '')
+                    if inc_id not in conversaciones:
+                        conversaciones[inc_id] = []
+                    conversaciones[inc_id].append({
+                        'rol': row.get('rol', ''),
+                        'contenido': row.get('contenido', ''),
+                    })
+
+            if not conversaciones:
+                return ""
+
+            # Tomar las últimas N conversaciones
+            ultimas = list(conversaciones.values())[-max_conv:]
+
+            lineas = [
+                "\n## CONVERSACIONES PASADAS EXITOSAS EN ESTA MÁQUINA",
+                "Estos son intercambios reales que resolvieron incidentes anteriores. "
+                "Úsalos como referencia para el tono, nivel de detalle y enfoque:",
+            ]
+            for i, conv in enumerate(ultimas, 1):
+                lineas.append(f"\n--- Incidente resuelto {i} ---")
+                for msg in conv:
+                    prefijo = "Operario" if msg['rol'] == 'operario' else "María"
+                    lineas.append(f"{prefijo}: {msg['contenido']}")
+
+            return "\n".join(lineas)
+
+        except Exception as e:
+            logger.debug("[RLHF] Error leyendo conversaciones: %s", e)
+            return ""
 
     # -----------------------------------------------------------------------
     # Detección de deriva de umbrales
