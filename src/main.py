@@ -755,6 +755,10 @@ class WorkerPeletizacion:
             await self._procesar_texto_operario(evento_texto)
             await asyncio.sleep(1)
 
+        for evento_foto in eventos['foto_operario']:
+            await self._procesar_foto_operario(evento_foto)
+            await asyncio.sleep(1)
+
         for chat_id, estado in eventos['resolver_operacion']:
             if estado == 'SI':
                 incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
@@ -1235,6 +1239,100 @@ class WorkerPeletizacion:
                 self._reanudar_chat_operario(chat_id)
                 await self.telegram.enviar_mensaje_simple(
                     chat_id, "Monitoreo automatico reanudado.")
+        else:
+            await self.telegram.enviar_confirmacion_solucion(
+                chat_id,
+                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
+            )
+
+    async def _procesar_foto_operario(self, evento_foto: dict[str, Any]) -> None:
+        """Interpreta una foto del operario usando Gemini multimodal."""
+        chat_id = int(evento_foto['chat_id'])
+        foto_bytes = evento_foto['foto_bytes']
+        caption = evento_foto.get('caption', '')
+
+        self._pausar_chat_operario(chat_id, motivo='foto_recibida')
+        await self.telegram.enviar_mensaje_simple(
+            chat_id,
+            "Foto recibida. Analizando imagen con Gemini.",
+        )
+
+        contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        try:
+            resultado = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.llm.interpretar_foto_operario,
+                    foto_bytes=foto_bytes,
+                    caption=caption,
+                    prompt_texto=contexto,
+                ),
+                timeout=60,
+            )
+        except asyncio.TimeoutError:
+            resultado = {
+                'transcripcion': caption or 'Foto sin descripción',
+                'intencion': 'OTRO',
+                'accion_detectada': 'Timeout analizando la foto.',
+                'resumen_operario': caption or 'El operario envió una foto.',
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': 'Tarde demasiado analizando la foto. Describe lo que ves por texto.',
+                'senal_resolucion': 'NO',
+            }
+
+        lectura = self._ultima_lectura_publicada or {}
+        incidente_existente = self._incidentes_chat.get(chat_id, {})
+        incidente_id = int(incidente_existente.get('id_incidente', 0) or 0)
+        if not incidente_id:
+            incidente_id = self.memoria_incidentes.abrir_incidente(
+                chat_id=chat_id,
+                id_planta=str(lectura.get('id_planta', '001')),
+                id_maquina=str(lectura.get('id_maquina', '')),
+                id_formula=str(lectura.get('id_formula', '')),
+                codigo_producto=str(lectura.get('codigo_producto', '')),
+                descripcion='El operario envio una foto para evidencia visual del incidente.',
+                metadata={
+                    'intencion': resultado.get('intencion', 'OTRO'),
+                    'caption': caption[:200],
+                },
+            )
+            self._incidentes_chat[chat_id] = {
+                'id_incidente': incidente_id,
+                'lectura': lectura,
+                'resultado_foto': resultado,
+            }
+
+        self.memoria_incidentes.registrar_evento(
+            id_incidente=incidente_id,
+            tipo_evento='foto_operario',
+            descripcion=f"Foto recibida ({evento_foto.get('width', '?')}x{evento_foto.get('height', '?')}). Caption: {caption[:100]}",
+        )
+
+        senal = (resultado.get('senal_resolucion') or 'NO').upper().strip()
+        estado_monitoreo = "Monitoreo normal activo."
+        if senal != 'SI':
+            self._pausar_chat_operario(chat_id, motivo=resultado.get('intencion', 'OTRO'))
+            estado_monitoreo = "Envio automatico pausado hasta que reportes solucion del problema."
+
+        respuesta = (
+            f"<b>Maria</b>\n"
+            f"{html.escape(resultado.get('respuesta_asistente') or 'Foto analizada.')}\n"
+            f"<b>Hallazgo:</b> {html.escape(resultado.get('transcripcion', ''))}\n"
+            f"<b>Intencion:</b> {html.escape(resultado.get('intencion', 'OTRO'))} | "
+            f"<b>Urgencia:</b> {html.escape(resultado.get('nivel_urgencia', 'MEDIO'))}\n"
+            f"<i>{html.escape(estado_monitoreo)}</i>"
+        )
+        await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+
+        if senal == 'SI':
+            self.memoria_incidentes.registrar_evento(
+                id_incidente=incidente_id,
+                tipo_evento='resolucion_por_foto',
+                descripcion='El operario confirmó resolución con evidencia fotográfica.',
+            )
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                await self.telegram.enviar_mensaje_simple(chat_id, "Monitoreo automatico reanudado.")
         else:
             await self.telegram.enviar_confirmacion_solucion(
                 chat_id,

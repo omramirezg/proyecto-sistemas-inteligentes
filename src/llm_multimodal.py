@@ -1045,6 +1045,106 @@ Reglas:
                 'senal_resolucion': 'NO',
             }
 
+    def interpretar_foto_operario(
+        self,
+        foto_bytes: bytes,
+        caption: str,
+        prompt_texto: str,
+    ) -> dict:
+        """Interpreta una foto enviada por el operario con contexto multimodal."""
+        try:
+            from google.genai import types
+
+            cliente = self._obtener_cliente_genai()
+            conocimiento_planta = self._cargar_base_conocimiento()
+
+            parte_imagen = types.Part.from_bytes(
+                data=foto_bytes,
+                mime_type='image/jpeg',
+            )
+
+            texto_caption = f'\nMensaje del operario junto a la foto: "{caption}"' if caption else ''
+            instruccion = f"""
+Eres María, Ingeniera de Procesos Senior en una planta de peletización industrial.
+El operario te envió una FOTO desde campo. Analiza la imagen y responde SOLO en JSON valido.
+
+{conocimiento_planta}
+
+Contexto operativo actual:
+{prompt_texto}
+{texto_caption}
+
+Analiza la foto del operario considerando:
+- ¿Qué equipo o componente se ve? (manómetro, válvula, trampa, dado, motor, panel, etc.)
+- ¿Se observa alguna anomalía? (lectura fuera de rango, fuga, daño visible, suciedad, desgaste)
+- ¿La evidencia visual es coherente con la alerta actual del sistema?
+
+Formato requerido:
+{{
+  "transcripcion": "Descripcion de lo que se ve en la foto",
+  "intencion": "EVIDENCIA_VISUAL | OBSERVACION_OPERATIVA | MANTENIMIENTO | ESCALAMIENTO | OTRO",
+  "accion_detectada": "Lo que el operario quiere mostrar o reportar con la foto",
+  "resumen_operario": "Resumen de la evidencia visual y su relevancia",
+  "nivel_urgencia": "BAJO | MEDIO | ALTO",
+  "respuesta_asistente": "Respuesta de Maria basada en lo que ve en la foto, maximo 2 oraciones",
+  "senal_resolucion": "SI | NO"
+}}
+
+Reglas:
+- Describe lo que VES en la foto, no inventes elementos que no estén.
+- Si la foto está borrosa o no se distingue el equipo, indícalo honestamente.
+- "respuesta_asistente" debe ser coherente con la evidencia visual y el contexto de la alerta.
+- Si la foto muestra un manómetro con lectura visible, reporta el valor que lees.
+- Si la foto muestra daño físico (fuga, desgaste, rotura), indica severidad.
+- Responde en español.
+"""
+
+            _max_reintentos = 3
+            _espera_base = 4
+            response = None
+            for _reintento in range(_max_reintentos):
+                try:
+                    response = cliente.models.generate_content(
+                        model=self.config.gemini_model,
+                        contents=[parte_imagen, instruccion],
+                        config=types.GenerateContentConfig(
+                            temperature=0.2,
+                        ),
+                    )
+                    break
+                except Exception as _err:
+                    _es_429 = '429' in str(_err) or 'RESOURCE_EXHAUSTED' in str(_err)
+                    if _es_429 and _reintento < _max_reintentos - 1:
+                        _espera = _espera_base * (2 ** _reintento)
+                        logger.warning(
+                            "[FOTO] Rate limit 429. Reintento %d/%d en %ds...",
+                            _reintento + 1, _max_reintentos, _espera,
+                        )
+                        time.sleep(_espera)
+                    else:
+                        raise
+
+            return self._parsear_json_audio(response.text.strip())
+
+        except Exception as e:
+            logger.error(
+                "Error interpretando foto del operario con Gemini: %s | size=%d bytes | caption='%s'",
+                e, len(foto_bytes), (caption or '')[:100],
+                exc_info=True,
+            )
+            return {
+                'transcripcion': caption or 'Foto sin descripción',
+                'intencion': 'OTRO',
+                'accion_detectada': 'No fue posible analizar la foto con Gemini.',
+                'resumen_operario': caption or 'El operario envió una foto sin descripción.',
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': (
+                    'No pude analizar la foto en este momento. '
+                    'Describe lo que ves por texto o nota de voz.'
+                ),
+                'senal_resolucion': 'NO',
+            }
+
     def _parsear_json_audio(self, texto: str) -> dict:
         """Parsea la respuesta del modelo para audio del operario."""
         try:

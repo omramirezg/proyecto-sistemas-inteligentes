@@ -363,6 +363,7 @@ class TelegramNotificador(NotificadorBase):
             'explicar_evento': [],
             'audio_operario': [],
             'texto_operario': [],
+            'foto_operario': [],
             'feedback': [],
             'resolver_operacion': [],
         }
@@ -454,6 +455,25 @@ class TelegramNotificador(NotificadorBase):
                     })
                 except Exception as e:
                     logger.error("Error descargando audio del operario: %s", e)
+                continue
+
+            if getattr(message, 'photo', None):
+                try:
+                    # Telegram envía varias resoluciones; tomamos la más grande (última)
+                    foto = message.photo[-1]
+                    foto_bytes = await self._descargar_archivo(foto.file_id)
+                    caption = (message.caption or '').strip()
+                    eventos['foto_operario'].append({
+                        'chat_id': message.chat_id,
+                        'foto_bytes': foto_bytes,
+                        'caption': caption,
+                        'file_id': foto.file_id,
+                        'width': foto.width,
+                        'height': foto.height,
+                        'tipo_entrada': 'foto',
+                    })
+                except Exception as e:
+                    logger.error("Error descargando foto del operario: %s", e)
                 continue
 
             if message.text is None:
