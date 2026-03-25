@@ -91,9 +91,8 @@ class WorkerPeletizacion:
         # para que María recuerde lo dicho dentro del mismo incidente.
         # Se limpia al cerrar el incidente (botón "Sí, solucionado").
         self._historial_conversacion: dict[int, list[dict[str, str]]] = {}
-        # Buffer de mensajes pendientes por chat — el operario acumula y presiona "Enviar consulta"
-        self._buffer_mensajes: dict[int, dict[str, list]] = {}
-        self._boton_consulta_enviado: set[int] = set()  # chat_ids que ya tienen botón visible
+        # (Buffer y botón de consulta eliminados — ahora cada mensaje se procesa al instante
+        #  con el historial completo de conversación como contexto)
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -755,66 +754,21 @@ class WorkerPeletizacion:
                 logger.error("Error enviando escalación de agente: %s", e)
 
     async def _procesar_eventos_chat(self) -> None:
-        """Atiende solicitudes del operario con debounce multimodal.
+        """Atiende mensajes del operario como conversación natural.
 
-        Si un chat_id tiene múltiples inputs (audio + texto + foto),
-        los agrupa y los procesa en UNA sola llamada a Gemini.
-        Si solo tiene un input, lo procesa individualmente (igual que antes).
+        Cada mensaje (audio, texto, foto) se procesa al instante.
+        María siempre tiene el historial completo de la conversación
+        para mantener contexto entre mensajes.
         """
         eventos = await self.telegram.obtener_eventos_chat()
 
-        # Acumular nuevos mensajes en el buffer por chat_id
-        for ev in eventos['audio_operario']:
-            cid = int(ev['chat_id'])
-            self._buffer_mensajes.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
-            self._buffer_mensajes[cid]['audios'].append(ev)
-        for ev in eventos['texto_operario']:
-            cid = int(ev['chat_id'])
-            self._buffer_mensajes.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
-            self._buffer_mensajes[cid]['textos'].append(ev)
-        for ev in eventos['foto_operario']:
-            cid = int(ev['chat_id'])
-            self._buffer_mensajes.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
-            self._buffer_mensajes[cid]['fotos'].append(ev)
-
-        # Mostrar botón "Enviar consulta" solo una vez por tanda
-        chats_con_nuevos = set(
-            [int(e['chat_id']) for e in eventos['audio_operario']] +
-            [int(e['chat_id']) for e in eventos['texto_operario']] +
-            [int(e['chat_id']) for e in eventos['foto_operario']]
-        )
-        for cid in chats_con_nuevos:
-            if cid not in self._boton_consulta_enviado:
-                buf = self._buffer_mensajes.get(cid, {})
-                n = len(buf.get('audios', [])) + len(buf.get('textos', [])) + len(buf.get('fotos', []))
-                if n > 0:
-                    await self.telegram.enviar_boton_consulta(cid, n)
-                    self._boton_consulta_enviado.add(cid)
-
-        # Procesar cuando el operario presiona "Enviar consulta"
-        for chat_id in eventos.get('enviar_consulta', []):
-            self._boton_consulta_enviado.discard(chat_id)
-            inputs = self._buffer_mensajes.pop(chat_id, None)
-            if not inputs:
-                continue
-
-            total = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
-            if total == 0:
-                continue
-
-            if total > 1:
-                await self.telegram.enviar_mensaje_simple(
-                    chat_id,
-                    f"Procesando {total} mensajes juntos con Gemini.",
-                )
-                await self._procesar_multimodal_unificado(chat_id, inputs)
-            else:
-                if inputs['audios']:
-                    await self._procesar_audio_operario(inputs['audios'][0])
-                elif inputs['textos']:
-                    await self._procesar_texto_operario(inputs['textos'][0])
-                elif inputs['fotos']:
-                    await self._procesar_foto_operario(inputs['fotos'][0])
+        # Procesar cada mensaje individualmente, en orden de llegada
+        for evento_audio in eventos['audio_operario']:
+            await self._procesar_audio_operario(evento_audio)
+        for evento_texto in eventos['texto_operario']:
+            await self._procesar_texto_operario(evento_texto)
+        for evento_foto in eventos['foto_operario']:
+            await self._procesar_foto_operario(evento_foto)
 
         for chat_id, estado in eventos['resolver_operacion']:
             if estado == 'SI':
