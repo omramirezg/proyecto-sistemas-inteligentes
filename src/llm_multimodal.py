@@ -814,7 +814,13 @@ Reglas:
 - No inventes datos que no se entiendan.
 - Responde en espanol.
 - Si el audio no es claro, deja constancia en la transcripcion.
+- "transcripcion" debe ser lo que el operario DIJO, lo mas fiel posible al audio.
+- "resumen_operario" debe capturar la INFORMACION NUEVA que el operario aporta (diagnostico en campo, descartes, observaciones).
 - "respuesta_asistente" debe ser la respuesta de Maria al operario, maximo 2 oraciones, directa y accionable.
+  IMPORTANTE: La respuesta de Maria DEBE ser COHERENTE con lo que el operario acaba de decir.
+  Si el operario descarta una causa (ej: "la dosificacion de vapor esta bien"), Maria NO debe recomendar revisar esa misma causa.
+  Maria debe incorporar el descarte del operario y sugerir la SIGUIENTE accion logica, no repetir lo que ya fue descartado.
+  Ejemplo: si el operario dice "el vapor esta bien, el problema es la energia termica", Maria debe responder sobre energia termica, NO sobre vapor.
 - "senal_resolucion" debe ser SI solo si el operario confirma claramente que el problema se soluciono, quedo estable o ya puede reanudarse el monitoreo normal.
 """
 
