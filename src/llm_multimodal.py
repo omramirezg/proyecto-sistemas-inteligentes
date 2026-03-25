@@ -691,7 +691,83 @@ class GeminiProvider(LLMProvider):
         except FileNotFoundError:
             guardarrailes = self._guardarrailes_default()
 
+        # Inyectar base de conocimiento de planta si existe
+        conocimiento = self._cargar_base_conocimiento()
+        if conocimiento:
+            system_prompt = system_prompt + "\n\n" + conocimiento
+
         return system_prompt, tono, estructura, guardarrailes
+
+    def _cargar_base_conocimiento(self) -> str:
+        """
+        Carga y comprime la base de conocimiento técnico de la planta
+        desde config/base_conocimiento_planta.yaml.
+        Retorna un bloque de texto con el conocimiento relevante para el LLM.
+        """
+        try:
+            import yaml
+            ruta = self.config.config_dir / 'base_conocimiento_planta.yaml'
+            if not ruta.exists():
+                return ""
+            with open(ruta, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+
+            bloques = []
+
+            # Equipos por máquina
+            maquinas = data.get('maquinas', {})
+            for id_maq, info in maquinas.items():
+                bloques.append(f"MÁQUINA {id_maq}: {info.get('nombre', '')}")
+                if 'sistema_vapor' in info:
+                    sv = info['sistema_vapor']
+                    bloques.append(f"  Vapor: válvula control {sv.get('valvula_control', '')}, "
+                                   f"regulador {sv.get('regulador_presion', '')}, "
+                                   f"trampa {sv.get('trampa_vapor', '')}")
+                if 'acondicionador' in info:
+                    ac = info['acondicionador']
+                    bloques.append(f"  Acondicionador: {ac.get('tipo', '')}, "
+                                   f"sensor temp {ac.get('sensor_temperatura', '')}")
+
+            # Circuito de vapor
+            circuito = data.get('circuito_vapor', {})
+            if circuito.get('descripcion'):
+                bloques.append(f"\nCIRCUITO DE VAPOR:\n{circuito['descripcion'].strip()}")
+            for punto in circuito.get('puntos_criticos', []):
+                bloques.append(f"  PUNTO CRÍTICO — {punto['nombre']}: "
+                               f"indicador={punto.get('indicador', '')} | "
+                               f"acción={punto.get('accion', '')}")
+
+            # Fallas comunes
+            fallas = data.get('fallas_comunes', [])
+            if fallas:
+                bloques.append("\nFALLAS COMUNES Y DIAGNÓSTICO DIFERENCIAL:")
+            for falla in fallas:
+                bloques.append(
+                    f"  {falla['id']} — {falla['nombre']}:\n"
+                    f"    Síntomas: {'; '.join(falla.get('sintomas', []))}\n"
+                    f"    Verificación: {falla.get('verificacion', '')}\n"
+                    f"    Acción operario: {falla.get('accion_operario', '')}"
+                )
+
+            # SOPs
+            procs = data.get('procedimientos', {})
+            for key, proc in procs.items():
+                bloques.append(f"\n{proc.get('nombre', key)}:")
+                for paso in proc.get('pasos', []):
+                    bloques.append(f"  {paso}")
+
+            resultado = "\n".join(bloques)
+            if resultado:
+                logger.info(
+                    "[CONOCIMIENTO] Base de conocimiento cargada: %d caracteres, "
+                    "%d fallas, %d procedimientos",
+                    len(resultado), len(fallas), len(procs),
+                )
+            return f"## BASE DE CONOCIMIENTO TÉCNICO DE LA PLANTA\n{resultado}"
+
+        except Exception as e:
+            logger.warning("[CONOCIMIENTO] No se pudo cargar base de conocimiento: %s", e)
+            return ""
 
     def _obtener_bloque_fijo_cacheado(self) -> tuple:
         """
@@ -793,10 +869,14 @@ Tu diagnóstico debe incluir:
                 data=audio_bytes,
                 mime_type=mime_type,
             )
+            conocimiento_planta = self._cargar_base_conocimiento()
             instruccion = f"""
-Eres un analista de operaciones industriales. Escucha el audio del operario y responde SOLO en JSON valido.
+Eres María, Ingeniera de Procesos Senior en una planta de peletización industrial.
+Escucha el audio del operario y responde SOLO en JSON valido.
 
-Contexto disponible:
+{conocimiento_planta}
+
+Contexto operativo actual:
 {prompt_texto}
 
 Formato requerido:

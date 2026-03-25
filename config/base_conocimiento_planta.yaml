@@ -1,0 +1,313 @@
+# ================================================================
+# BASE DE CONOCIMIENTO TÉCNICO — PLANTA PELETIZACIÓN 001
+# ================================================================
+# Conocimiento de dominio específico para el agente María.
+# Incluye: equipos, circuito de vapor, fallas comunes, procedimientos.
+# Data sintética basada en ingeniería real de peletización.
+
+planta:
+  id: "001"
+  nombre: "Planta de Peletización San Martín"
+  ubicacion: "Zona Industrial Norte, Lote 14"
+  capacidad_nominal_ton_hora: 45
+  turnos:
+    - nombre: "Turno A"
+      horario: "06:00 - 14:00"
+      supervisor: "Ing. Carlos Mejía"
+    - nombre: "Turno B"
+      horario: "14:00 - 22:00"
+      supervisor: "Ing. Laura Gómez"
+    - nombre: "Turno C"
+      horario: "22:00 - 06:00"
+      supervisor: "Ing. Roberto Salazar"
+
+# ================================================================
+# EQUIPOS POR MÁQUINA
+# ================================================================
+maquinas:
+  "301":
+    nombre: "Peletizadora 301 — Línea Principal"
+    fabricante: "CPM Master Series"
+    modelo: "7900-8"
+    año_instalacion: 2019
+    motor_principal:
+      potencia_hp: 250
+      voltaje: "460V trifásico"
+      corriente_nominal_A: 500
+      corriente_vacio_A: 30
+      rpm_nominal: 1780
+      proteccion: "Relé térmico + variador de frecuencia ABB ACS880"
+    acondicionador:
+      tipo: "Acondicionador de doble eje con inyección directa de vapor"
+      longitud_m: 3.2
+      diametro_m: 0.65
+      tiempo_retencion_seg: 25-40
+      angulo_paletas_grados: 15-45
+      sensor_temperatura: "PT100 a la salida del acondicionador, rango 0-300°C"
+      sensor_presion: "Transmisor Rosemount 3051 en la entrada de vapor, rango 0-50 PSI"
+    sistema_vapor:
+      caldera: "Caldera pirotubular Cleaver-Brooks, 600 BHP, vapor saturado a 150 PSI"
+      linea_principal: "Tubería de 4 pulgadas desde cabezal principal hasta manifold de peletizadoras"
+      valvula_control: "Válvula reguladora Fisher V150, actuador neumático, señal 4-20mA desde PLC"
+      valvula_manual: "Válvula de bola de 3 pulgadas antes de la reguladora (aislamiento de emergencia)"
+      regulador_presion: "Regulador autooperado Spirax Sarco 25P, setpoint 8-12 PSI"
+      trampa_vapor: "Trampa termodinámica Spirax Sarco TD42 en la purga del acondicionador"
+      manometro_local: "Manómetro Bourdon 0-30 PSI en la entrada al acondicionador"
+    dados_y_rodillos:
+      tipo_dado: "Dado de acero inoxidable 420, espesor 70mm, diámetro agujero 4.5mm"
+      rodillos: "2 rodillos de compresión con ajuste hidráulico"
+      vida_util_dado_horas: 3000
+      vida_util_rodillo_horas: 2000
+    enfriador:
+      tipo: "Enfriador contraflujo Geelen Counterflow"
+      capacidad_ton_hora: 15
+      ventiladores: "2 ventiladores centrífugos de 15 HP cada uno"
+
+  "302":
+    nombre: "Peletizadora 302 — Línea Secundaria"
+    fabricante: "CPM Master Series"
+    modelo: "7900-8"
+    año_instalacion: 2020
+    nota: "Misma configuración que 301, línea de vapor independiente desde manifold"
+
+  "303":
+    nombre: "Peletizadora 303 — Línea Compacta A"
+    fabricante: "Andritz Sprout"
+    modelo: "Sprout 26LM"
+    año_instalacion: 2022
+    motor_principal:
+      potencia_hp: 100
+      corriente_nominal_A: 150
+    nota: "Capacidad reducida, usada para fórmulas especiales y lotes cortos"
+
+  "304":
+    nombre: "Peletizadora 304 — Línea Compacta B"
+    fabricante: "Andritz Sprout"
+    modelo: "Sprout 26LM"
+    año_instalacion: 2022
+    nota: "Idéntica a 303, opera en paralelo para alta demanda"
+
+# ================================================================
+# CIRCUITO DE VAPOR — DIAGRAMA LÓGICO
+# ================================================================
+circuito_vapor:
+  descripcion: |
+    La caldera genera vapor saturado a 150 PSI. El vapor viaja por el cabezal
+    principal (4") hasta un manifold que distribuye a las 4 peletizadoras.
+    Cada línea tiene: válvula de aislamiento manual → regulador de presión
+    (baja a 8-12 PSI) → válvula de control proporcional (Fisher V150) →
+    acondicionador. La purga del acondicionador tiene trampa de vapor TD42.
+
+  puntos_criticos:
+    - nombre: "Cabezal principal"
+      riesgo: "Si la caldera baja presión, todas las máquinas pierden vapor simultáneamente"
+      indicador: "Presión baja en todas las máquinas al mismo tiempo"
+
+    - nombre: "Regulador Spirax 25P"
+      riesgo: "Si se descalibra, la presión al acondicionador oscila o se mantiene baja"
+      indicador: "Presión inestable (oscila ±2 PSI en minutos) o permanece por debajo de setpoint"
+      accion: "Verificar manómetro local antes y después del regulador. Si hay diferencial >3 PSI, el regulador está fallando"
+
+    - nombre: "Válvula Fisher V150"
+      riesgo: "Si el actuador neumático pierde aire, la válvula se cierra (fail-close)"
+      indicador: "Caída súbita de presión y temperatura sin cambio en caldera"
+      accion: "Verificar presión de aire instrumentos (debe estar >60 PSI). Revisar posicionador de válvula"
+
+    - nombre: "Trampa de vapor TD42"
+      riesgo: "Si se bloquea, condensado se acumula en el acondicionador. Reduce transferencia de calor"
+      indicador: "Temperatura baja PERO presión normal — el vapor entra pero no transfiere energía"
+      accion: "Verificar descarga de la trampa. Si no hay goteo en la mirilla, la trampa está bloqueada"
+
+    - nombre: "Línea de condensado"
+      riesgo: "Si la línea de retorno está obstruida, genera contrapresión y reduce flujo de vapor"
+      indicador: "Presión normal en entrada pero temperatura sube muy lento"
+      accion: "Revisar bomba de condensado y tanque de flasheo"
+
+# ================================================================
+# FALLAS COMUNES Y DIAGNÓSTICO DIFERENCIAL
+# ================================================================
+fallas_comunes:
+
+  - id: "F001"
+    nombre: "Caída de presión de vapor — origen caldera"
+    sintomas:
+      - "Presión baja en TODAS las máquinas simultáneamente"
+      - "Temperatura baja progresiva en todos los acondicionadores"
+    causa_raiz: "La caldera perdió presión (bajo nivel de agua, falla de quemador, demanda excesiva)"
+    verificacion: "Revisar manómetro del cabezal principal. Si está por debajo de 100 PSI, el problema es la caldera"
+    accion_operario: "Reducir alimentación en todas las líneas al 50%. No apagar máquinas. Esperar respuesta de caldera"
+    accion_mantenimiento: "Verificar nivel de agua, estado del quemador, y si hay purga excesiva"
+    tiempo_resolucion_tipico: "15-30 minutos si es quemador, 2+ horas si es nivel de agua"
+
+  - id: "F002"
+    nombre: "Caída de presión de vapor — origen regulador"
+    sintomas:
+      - "Presión baja en UNA sola máquina (las demás están normales)"
+      - "Manómetro local antes del regulador muestra presión correcta (>100 PSI)"
+      - "Manómetro después del regulador muestra <6 PSI"
+    causa_raiz: "Regulador Spirax 25P descalibrado o membrana dañada"
+    verificacion: "Comparar lectura antes y después del regulador en el manómetro local"
+    accion_operario: "Usar bypass manual (si existe) para mantener producción. Reportar a mantenimiento"
+    accion_mantenimiento: "Recalibrar o reemplazar el regulador. Verificar membrana y resorte"
+    tiempo_resolucion_tipico: "30-60 minutos"
+
+  - id: "F003"
+    nombre: "Pérdida de energía térmica con presión normal"
+    sintomas:
+      - "Presión de vapor NORMAL (8-12 PSI)"
+      - "Temperatura del acondicionador BAJA y no sube"
+      - "Producto sale con humedad insuficiente"
+    causa_raiz: "Trampa de vapor bloqueada o línea de condensado obstruida"
+    verificacion: "Ir a la trampa de vapor TD42 del acondicionador. Verificar si hay descarga visible en la mirilla"
+    accion_operario: "Si la trampa no descarga: purgar manualmente por la válvula de drenaje inferior. Si persiste, reducir carga al 60%"
+    accion_mantenimiento: "Reemplazar internos de la trampa TD42 o limpiar línea de condensado"
+    tiempo_resolucion_tipico: "20-45 minutos"
+    nota: "Esta es la falla MÁS CONFUSA porque la presión está bien pero la temperatura no sube. Los operarios suelen pedir más vapor, lo cual NO soluciona el problema"
+
+  - id: "F004"
+    nombre: "Sobrepresión en acondicionador"
+    sintomas:
+      - "Presión por encima de 15 PSI en el acondicionador"
+      - "Válvula de seguridad puede actuar (venteo audible)"
+    causa_raiz: "Válvula Fisher V150 abierta excesivamente o regulador con setpoint alto"
+    verificacion: "Verificar señal de control (4-20mA) al posicionador de la Fisher. Si es >16mA con presión alta, el control está pidiendo demasiado vapor"
+    accion_operario: "Cerrar parcialmente la válvula manual de aislamiento. NO intentar ajustar la Fisher manualmente"
+    accion_mantenimiento: "Recalibrar lazo de control PLC-Fisher. Verificar setpoint del regulador"
+    tiempo_resolucion_tipico: "15-30 minutos"
+
+  - id: "F005"
+    nombre: "Sobrecarga del motor principal"
+    sintomas:
+      - "Corriente por encima del 90% de la nominal"
+      - "Temperatura del motor elevada"
+      - "Vibración perceptible o ruido inusual"
+    causa_raiz: "Exceso de alimentación, dado obstruido, rodillos desajustados, o materia prima con alta dureza"
+    verificacion: "Verificar amperímetro del variador. Si corriente >450A en máquina 301, hay sobrecarga"
+    accion_operario: "Reducir alimentación inmediatamente al 50%. Si corriente no baja en 2 minutos, parar alimentación completamente"
+    accion_mantenimiento: "Inspeccionar dado (buscar agujeros taponados), verificar gap de rodillos, revisar temperatura de cojinetes"
+    tiempo_resolucion_tipico: "Variable — si es alimentación: 5 min. Si es dado taponado: 2-4 horas"
+
+  - id: "F006"
+    nombre: "Oscilación de presión de vapor"
+    sintomas:
+      - "Presión oscila ±2-3 PSI cada 30-60 segundos"
+      - "Temperatura oscila correspondientemente"
+    causa_raiz: "Lazo de control PLC-Fisher inestable (ganancia PID excesiva) o regulador con respuesta lenta"
+    verificacion: "Observar la válvula Fisher: si está oscilando visiblemente (abre-cierra rápido), es el PID. Si está quieta, es el regulador"
+    accion_operario: "Pasar válvula Fisher a modo manual al 50% de apertura. Esto estabiliza mientras mantenimiento ajusta el PID"
+    accion_mantenimiento: "Ajustar parámetros PID del lazo de presión. Reducir ganancia proporcional"
+    tiempo_resolucion_tipico: "15-30 minutos en modo manual, 1-2 horas para ajuste PID definitivo"
+
+  - id: "F007"
+    nombre: "Producto con baja durabilidad"
+    sintomas:
+      - "Durabilidad real < objetivo (ej: <92% cuando se pide 96%)"
+      - "Variables de proceso aparentemente normales"
+    causa_raiz: "Tiempo de acondicionamiento insuficiente, ángulo de paletas incorrecto, o PQF bajo"
+    verificacion: "Verificar tiempo de retención en acondicionador (debe ser >25s). Verificar ángulo de paletas"
+    accion_operario: "Cerrar ángulo de paletas 5° para aumentar tiempo de retención. Si persiste, reducir velocidad de alimentación 10%"
+    accion_mantenimiento: "Verificar desgaste de paletas del acondicionador. Medir PQF de la materia prima"
+    tiempo_resolucion_tipico: "Inmediato si es ángulo de paletas"
+
+  - id: "F008"
+    nombre: "Falla de sensor de temperatura PT100"
+    sintomas:
+      - "Temperatura muestra lectura fija (no cambia) o muestra -999/NaN"
+      - "Presión de vapor normal"
+      - "Producto sale con humedad y temperatura correctas al tacto"
+    causa_raiz: "Sensor PT100 desconectado, cable roto, o transmisor dañado"
+    verificacion: "Comparar lectura del sistema con medición manual (termómetro portátil en la salida del acondicionador)"
+    accion_operario: "Operar con monitoreo manual de temperatura cada 10 minutos. NO confiar en la lectura del sensor"
+    accion_mantenimiento: "Revisar conexión del PT100, verificar resistencia del sensor (100Ω a 0°C), reemplazar si necesario"
+    tiempo_resolucion_tipico: "30-60 minutos para diagnóstico, inmediato si es conexión suelta"
+
+# ================================================================
+# PROCEDIMIENTOS OPERATIVOS ESTÁNDAR (SOPs)
+# ================================================================
+procedimientos:
+
+  arranque_maquina:
+    nombre: "SOP-001: Arranque de peletizadora"
+    pasos:
+      - "1. Verificar que la caldera tenga presión >120 PSI en cabezal"
+      - "2. Abrir válvula manual de aislamiento de vapor"
+      - "3. Esperar 5 minutos para que el acondicionador se precaliente (temp >50°C)"
+      - "4. Arrancar motor principal en vacío (verificar corriente <35A)"
+      - "5. Iniciar alimentación al 30% de capacidad"
+      - "6. Ajustar vapor hasta alcanzar temperatura objetivo de fórmula"
+      - "7. Incrementar alimentación gradualmente (10% cada 3 minutos)"
+      - "8. Verificar durabilidad y humedad del primer lote"
+
+  parada_normal:
+    nombre: "SOP-002: Parada normal de peletizadora"
+    pasos:
+      - "1. Reducir alimentación gradualmente (10% cada 2 minutos)"
+      - "2. Cuando alimentación llegue a 0%, cerrar vapor (Fisher al 0%)"
+      - "3. Dejar motor corriendo 5 minutos para limpiar dado"
+      - "4. Apagar motor principal"
+      - "5. Cerrar válvula manual de aislamiento de vapor"
+
+  emergencia_sobrecarga:
+    nombre: "SOP-003: Emergencia por sobrecarga de motor"
+    pasos:
+      - "1. PARAR alimentación inmediatamente (botón rojo del alimentador)"
+      - "2. NO apagar el motor principal — dejarlo girar para evitar atoramiento"
+      - "3. Cerrar vapor al 50%"
+      - "4. Esperar a que corriente baje a <100A (vacío)"
+      - "5. Si corriente NO baja en 3 minutos: PARAR motor (riesgo de atoramiento)"
+      - "6. Notificar supervisor inmediatamente"
+      - "7. NO reiniciar sin inspección de dado y rodillos"
+
+  emergencia_presion_baja:
+    nombre: "SOP-004: Emergencia por caída de presión de vapor"
+    pasos:
+      - "1. Verificar si afecta todas las máquinas o solo una"
+      - "2. Si afecta TODAS: problema de caldera — reducir carga al 50% en todas las líneas"
+      - "3. Si afecta UNA: problema local — verificar regulador y válvula de esa línea"
+      - "4. Revisar manómetros locales (antes y después del regulador)"
+      - "5. Si regulador falló: activar bypass manual si existe"
+      - "6. Notificar a supervisor y mantenimiento"
+
+# ================================================================
+# HISTORIAL DE INCIDENTES RECIENTES (SINTÉTICO)
+# ================================================================
+historial_incidentes_referencia:
+  - fecha: "2026-02-15"
+    maquina: "301"
+    falla: "F003"
+    descripcion: "Temperatura no subía con presión normal. Trampa TD42 bloqueada"
+    resolucion: "Operario purgó manualmente. Mantenimiento reemplazó internos de la trampa"
+    tiempo_total: "35 minutos"
+    leccion: "Implementar inspección semanal de trampas de vapor"
+
+  - fecha: "2026-02-28"
+    maquina: "301"
+    falla: "F005"
+    descripcion: "Corriente subió a 480A. Dado parcialmente taponado por materia prima húmeda"
+    resolucion: "Operario redujo carga. Mantenimiento limpió dado con aire comprimido"
+    tiempo_total: "3 horas"
+    leccion: "Verificar humedad de materia prima antes de iniciar producción"
+
+  - fecha: "2026-03-05"
+    maquina: "302"
+    falla: "F002"
+    descripcion: "Presión baja solo en 302. Regulador Spirax descalibrado"
+    resolucion: "Mantenimiento recalibró regulador. Setpoint estaba en 5 PSI en vez de 10 PSI"
+    tiempo_total: "45 minutos"
+    leccion: "Incluir verificación de setpoint de regulador en ronda de turno"
+
+  - fecha: "2026-03-10"
+    maquina: "301"
+    falla: "F006"
+    descripcion: "Presión oscilaba ±3 PSI. PID del lazo Fisher era demasiado agresivo"
+    resolucion: "Operario pasó a modo manual. Instrumentista ajustó PID (Kp de 2.5 a 1.2)"
+    tiempo_total: "1.5 horas"
+    leccion: "Documentar parámetros PID después de cada ajuste"
+
+  - fecha: "2026-03-18"
+    maquina: "303"
+    falla: "F001"
+    descripcion: "Caída de presión en todas las máquinas. Quemador de caldera se apagó por falla de gas"
+    resolucion: "Personal de caldera reinició quemador. Producción redujo carga 30 minutos"
+    tiempo_total: "25 minutos"
+    leccion: "Instalar alarma de presión de gas natural antes del quemador"
