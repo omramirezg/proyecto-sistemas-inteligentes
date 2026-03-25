@@ -458,17 +458,32 @@ class GeminiProvider(LLMProvider):
             else:
                 gen_config_cached = cache.name if cache else None
 
-            # Configuración de generación con tools habilitadas
-            gen_config = types.GenerateContentConfig(
-                cached_content=gen_config_cached,
-                temperature=_temperatura,
-                max_output_tokens=_max_tokens,
-                top_p=_top_p,
-                tools=[types.Tool(function_declarations=herramientas.declaraciones_gemini())],
-                tool_config=types.ToolConfig(
-                    function_calling_config=types.FunctionCallingConfig(mode="AUTO"),
-                ),
+            # Configuración de generación.
+            # Vertex AI prohíbe tools + system_instruction junto con cached_content.
+            # Si hay cache → tools y system_instruction ya están adentro.
+            _tools_decl = [types.Tool(function_declarations=herramientas.declaraciones_gemini())]
+            _tool_cfg   = types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode="AUTO"),
             )
+
+            if gen_config_cached:
+                # Cache activo → NO mandar tools ni system_instruction
+                gen_config = types.GenerateContentConfig(
+                    cached_content=gen_config_cached,
+                    temperature=_temperatura,
+                    max_output_tokens=_max_tokens,
+                    top_p=_top_p,
+                )
+            else:
+                # Sin cache → mandar todo explícitamente
+                gen_config = types.GenerateContentConfig(
+                    system_instruction=bloque_fijo,
+                    temperature=_temperatura,
+                    max_output_tokens=_max_tokens,
+                    top_p=_top_p,
+                    tools=_tools_decl,
+                    tool_config=_tool_cfg,
+                )
 
             ultimo_texto: str = ""
             _MAX_REINTENTOS_429 = 2
