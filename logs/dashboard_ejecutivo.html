@@ -12,7 +12,7 @@
       --borde: #e7dcc8;
       --texto: #172033;
       --muted: #5b6578;
-      --accent: #b45309;
+      --accent: #b91c1c;
       --ok: #047857;
       --warn: #b45309;
       --danger: #b91c1c;
@@ -138,27 +138,27 @@
   <div class="wrap">
     <div class="hero">
       <h1>Dashboard Ejecutivo IA</h1>
-      <p>Planta 001 | Maquina 301 | Formula 3360 (ZB1) | Lectura 20</p>
+      <p>Planta 001 | Maquina 301 | Formula 3360 (ZB1) | Lectura 5</p>
     </div>
 
     <div class="grid">
       <div class="card">
         <div class="metric">Estado Global</div>
-        <div class="value accent">BAJO VIGILANCIA</div>
+        <div class="value accent">EN RIESGO</div>
       </div>
       <div class="card">
         <div class="metric">Severidad</div>
-        <div class="value accent">PREVENTIVA</div>
+        <div class="value accent">ALTA</div>
       </div>
       <div class="card">
         <div class="metric">Indice de Salud</div>
-        <div class="value">84/100</div>
-        <div>VIGILANCIA</div>
+        <div class="value">48/100</div>
+        <div>RIESGO</div>
       </div>
       <div class="card">
         <div class="metric">Pronostico a 5 Min</div>
-        <div class="value">MEDIO</div>
-        <div>riesgo medio de salir de banda por presion baja en los proximos 5 minutos</div>
+        <div class="value">ALTO</div>
+        <div>riesgo alto de continuar fuera de banda en los proximos 5 minutos</div>
       </div>
     </div>
 
@@ -168,30 +168,30 @@
         <div class="mini-grid">
           <div>
             <div class="metric">Temperatura EMA</div>
-            <div class="value">86.7 C</div>
-            <div>NORMAL</div>
+            <div class="value">55.9 C</div>
+            <div>BAJO</div>
           </div>
           <div>
             <div class="metric">Presion EMA</div>
-            <div class="value">8.2 PSI</div>
-            <div>NORMAL</div>
+            <div class="value">5.2 PSI</div>
+            <div>BAJO</div>
           </div>
           <div>
             <div class="metric">Corriente EMA</div>
-            <div class="value">247.0 A</div>
-            <div>Carga 49.4%</div>
+            <div class="value">239.2 A</div>
+            <div>Carga 47.8%</div>
           </div>
           <div>
             <div class="metric">Causa Probable</div>
-            <div>estabilidad aparente con tendencia de degradacion temprana</div>
+            <div>caida de suministro de vapor o dosificacion insuficiente de energia termica</div>
           </div>
         </div>
       </div>
       <div class="card">
         <h2 class="title">Tendencia y Riesgo</h2>
-        <div class="trend-line"><strong>Temperatura:</strong> viene cayendo en las ultimas lecturas</div>
-        <div class="trend-line"><strong>Presion:</strong> viene cayendo en las ultimas lecturas</div>
-        <div class="trend-line"><strong>Pronostico:</strong> riesgo medio de salir de banda por presion baja en los proximos 5 minutos</div>
+        <div class="trend-line"><strong>Temperatura:</strong> muestra deterioro progresivo por debajo de banda</div>
+        <div class="trend-line"><strong>Presion:</strong> muestra deterioro progresivo por debajo de banda</div>
+        <div class="trend-line"><strong>Pronostico:</strong> riesgo alto de continuar fuera de banda en los proximos 5 minutos</div>
       </div>
     </div>
 
@@ -202,13 +202,19 @@
       </div>
       <div class="card">
         <h2 class="title">Feedback del Operario</h2>
-        <span class='pill'>Alertas registradas: 333</span><span class='pill'>Utiles: 0.0%</span><span class='pill'>Falsos positivos: 0.0%</span><span class='pill'>Mantenimiento: 0</span>
+        <span class='pill'>Alertas registradas: 360</span><span class='pill'>Utiles: 0.0%</span><span class='pill'>Falsos positivos: 0.0%</span><span class='pill'>Mantenimiento: 0</span>
       </div>
     </div>
 
-    <div class="card">
-      <h2 class="title">Ventana Reciente de Tendencias</h2>
-      <table class='table'><thead><tr><th>Timestamp</th><th>Temp EMA</th><th>Presion EMA</th><th>Corriente EMA</th></tr></thead><tbody><tr><td>2026-03-15 08:56:23</td><td>238.9</td><td>23.0</td><td>344.7</td></tr><tr><td>2026-03-15 08:57:23</td><td>184.0</td><td>17.7</td><td>330.8</td></tr><tr><td>2026-03-15 08:58:23</td><td>145.5</td><td>14.0</td><td>306.3</td></tr><tr><td>2026-03-15 08:59:23</td><td>118.7</td><td>11.3</td><td>277.4</td></tr><tr><td>2026-03-15 09:00:23</td><td>99.8</td><td>9.4</td><td>262.8</td></tr><tr><td>2026-03-15 09:01:23</td><td>86.7</td><td>8.2</td><td>247.0</td></tr></tbody></table>
+    <div class="section">
+      <div class="card">
+        <h2 class="title">Memoria de Incidentes</h2>
+        <span class='pill'>Incidentes: 10</span><span class='pill'>Abiertos: 10</span><span class='pill'>Cerrados: 0</span><span class='pill'>T. resolucion: 0.0 min</span><span class='pill'>Score recurrencia: 100/100</span><span class='pill'>Riesgo predictivo: ALTO</span><p style='margin-top:14px; line-height:1.6;'><strong>Lectura predictiva:</strong> Riesgo alto de recurrencia: 3 incidente(s) reciente(s) en maquina 301 y 3 caso(s) con causa similar en 24 h.</p>
+      </div>
+      <div class="card">
+        <h2 class="title">Ventana Reciente de Tendencias</h2>
+        <table class='table'><thead><tr><th>Timestamp</th><th>Temp EMA</th><th>Presion EMA</th><th>Corriente EMA</th></tr></thead><tbody><tr><td>2026-03-25 09:41:41</td><td>55.8</td><td>5.5</td><td>298.3</td></tr><tr><td>2026-03-25 09:42:41</td><td>55.8</td><td>5.4</td><td>283.5</td></tr><tr><td>2026-03-25 09:43:41</td><td>55.9</td><td>5.3</td><td>261.5</td></tr><tr><td>2026-03-25 09:44:41</td><td>55.9</td><td>5.3</td><td>251.7</td></tr><tr><td>2026-03-25 09:45:41</td><td>55.9</td><td>5.2</td><td>239.2</td></tr></tbody></table>
+      </div>
     </div>
   </div>
 </body>
