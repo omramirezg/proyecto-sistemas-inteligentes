@@ -244,6 +244,28 @@ class TelegramNotificador(NotificadorBase):
             logger.error("Error enviando confirmacion de solucion a chat_id=%d: %s", chat_id, e)
             return False
 
+    async def enviar_boton_consulta(self, chat_id: int, n_acumulados: int) -> bool:
+        """Muestra al operario cuántos mensajes tiene acumulados y el botón para procesarlos."""
+        try:
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            bot = await self._obtener_bot()
+            teclado = InlineKeyboardMarkup([[
+                InlineKeyboardButton(
+                    f"Enviar consulta ({n_acumulados})",
+                    callback_data="enviar_consulta",
+                ),
+            ]])
+            await bot.send_message(
+                chat_id=chat_id,
+                text=f"{n_acumulados} mensaje(s) acumulado(s). Cuando termines de enviar, presiona el boton.",
+                reply_markup=teclado,
+            )
+            return True
+        except Exception as e:
+            logger.error("Error enviando boton de consulta: %s", e)
+            return False
+
     async def enviar_imagen(
         self, chat_id: int, imagen_bytes: bytes, caption: str = ""
     ) -> bool:
@@ -338,6 +360,7 @@ class TelegramNotificador(NotificadorBase):
                 'audio_operario': [],
                 'feedback': [],
                 'resolver_operacion': [],
+                'enviar_consulta': [],
             }
 
         if not self._polling_inicializado:
@@ -353,6 +376,7 @@ class TelegramNotificador(NotificadorBase):
                 'audio_operario': [],
                 'feedback': [],
                 'resolver_operacion': [],
+                'enviar_consulta': [],
             }
 
         eventos = {
@@ -422,6 +446,8 @@ class TelegramNotificador(NotificadorBase):
                         )
                     except Exception as e:
                         logger.error("Callback de resolucion invalido: %s", e)
+                elif callback_query.data == 'enviar_consulta':
+                    eventos['enviar_consulta'].append(callback_query.message.chat_id)
                 continue
 
             if message is None:
