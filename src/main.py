@@ -87,6 +87,10 @@ class WorkerPeletizacion:
         self._ultimo_panel_bytes: Optional[bytes] = None
         self._chats_pausados_operacion: dict[int, dict[str, Any]] = {}
         self._incidentes_chat: dict[int, dict[str, Any]] = {}
+        # Memoria de conversación por chat — se incluye en cada llamada a Gemini
+        # para que María recuerde lo dicho dentro del mismo incidente.
+        # Se limpia al cerrar el incidente (botón "Sí, solucionado").
+        self._historial_conversacion: dict[int, list[dict[str, str]]] = {}
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -1075,6 +1079,9 @@ class WorkerPeletizacion:
         )
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        historial = self._construir_bloque_historial(chat_id)
+        if historial:
+            contexto = f"{contexto}\n\n{historial}"
         try:
             resultado = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -1163,6 +1170,11 @@ class WorkerPeletizacion:
             f"<i>{html.escape(estado_monitoreo)}</i>"
         )
         await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+
+        # Registrar en historial de conversación para memoria dentro del incidente
+        self._registrar_en_historial(chat_id, 'operario', resultado.get('transcripcion', '(audio)'))
+        self._registrar_en_historial(chat_id, 'maria', resultado.get('respuesta_asistente', ''))
+
         self.memoria_incidentes.registrar_evento(
             id_incidente=incidente_id,
             tipo_evento='respuesta_maria',
@@ -1176,6 +1188,7 @@ class WorkerPeletizacion:
             cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
             if cierre_ok:
                 self._reanudar_chat_operario(chat_id)
+                self._limpiar_historial_chat(chat_id)
                 self.memoria_incidentes.registrar_evento(
                     id_incidente=incidente_id,
                     tipo_evento='monitoreo_reanudado',
@@ -1213,6 +1226,9 @@ class WorkerPeletizacion:
         )
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        historial = self._construir_bloque_historial(chat_id)
+        if historial:
+            contexto = f"{contexto}\n\n{historial}"
         try:
             resultado = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -1279,6 +1295,10 @@ class WorkerPeletizacion:
         )
         await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
 
+        # Memoria de conversación
+        self._registrar_en_historial(chat_id, 'operario', texto_operario)
+        self._registrar_en_historial(chat_id, 'maria', resultado.get('respuesta_asistente', ''))
+
         if senal == 'SI':
             self.memoria_incidentes.registrar_evento(
                 id_incidente=incidente_id,
@@ -1288,6 +1308,7 @@ class WorkerPeletizacion:
             cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
             if cierre_ok:
                 self._reanudar_chat_operario(chat_id)
+                self._limpiar_historial_chat(chat_id)
                 await self.telegram.enviar_mensaje_simple(
                     chat_id, "Monitoreo automatico reanudado.")
         else:
@@ -1309,6 +1330,9 @@ class WorkerPeletizacion:
         )
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        historial = self._construir_bloque_historial(chat_id)
+        if historial:
+            contexto = f"{contexto}\n\n{historial}"
         try:
             resultado = await asyncio.wait_for(
                 asyncio.to_thread(
@@ -1374,6 +1398,11 @@ class WorkerPeletizacion:
         )
         await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
 
+        # Memoria de conversación
+        desc_foto = f"(foto) {caption}" if caption else "(foto enviada)"
+        self._registrar_en_historial(chat_id, 'operario', desc_foto)
+        self._registrar_en_historial(chat_id, 'maria', resultado.get('respuesta_asistente', ''))
+
         if senal == 'SI':
             self.memoria_incidentes.registrar_evento(
                 id_incidente=incidente_id,
@@ -1383,6 +1412,7 @@ class WorkerPeletizacion:
             cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
             if cierre_ok:
                 self._reanudar_chat_operario(chat_id)
+                self._limpiar_historial_chat(chat_id)
                 await self.telegram.enviar_mensaje_simple(chat_id, "Monitoreo automatico reanudado.")
         else:
             await self.telegram.enviar_confirmacion_solucion(
@@ -1395,6 +1425,9 @@ class WorkerPeletizacion:
         self._pausar_chat_operario(chat_id, motivo='multimodal_unificado')
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        historial = self._construir_bloque_historial(chat_id)
+        if historial:
+            contexto = f"{contexto}\n\n{historial}"
 
         # Preparar listas para el método unificado del LLM
         audios_raw = [{'audio_bytes': a['audio_bytes'], 'mime_type': a.get('mime_type', 'audio/ogg')}
@@ -1470,6 +1503,11 @@ class WorkerPeletizacion:
         )
         await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
 
+        # Memoria de conversación
+        resumen_inputs = "; ".join(textos_raw[:2]) if textos_raw else "(audio+foto)"
+        self._registrar_en_historial(chat_id, 'operario', resumen_inputs)
+        self._registrar_en_historial(chat_id, 'maria', resultado.get('respuesta_asistente', ''))
+
         if senal == 'SI':
             self.memoria_incidentes.registrar_evento(
                 id_incidente=incidente_id,
@@ -1485,6 +1523,35 @@ class WorkerPeletizacion:
                 chat_id,
                 "Confirma cuando la novedad quede atendida para reanudar los reportes.",
             )
+
+    def _registrar_en_historial(self, chat_id: int, rol: str, contenido: str) -> None:
+        """Agrega un mensaje al historial de conversación del chat."""
+        if chat_id not in self._historial_conversacion:
+            self._historial_conversacion[chat_id] = []
+        self._historial_conversacion[chat_id].append({
+            'rol': rol,
+            'contenido': contenido[:500],  # limitar para no explotar el contexto
+        })
+        # Mantener máximo 20 intercambios (10 pares operario-María)
+        if len(self._historial_conversacion[chat_id]) > 20:
+            self._historial_conversacion[chat_id] = self._historial_conversacion[chat_id][-20:]
+
+    def _construir_bloque_historial(self, chat_id: int) -> str:
+        """Construye el bloque de historial de conversación para el prompt."""
+        historial = self._historial_conversacion.get(chat_id, [])
+        if not historial:
+            return ""
+        lineas = ["=== HISTORIAL DE CONVERSACION CON ESTE OPERARIO (mismo incidente) ==="]
+        for msg in historial:
+            prefijo = "OPERARIO" if msg['rol'] == 'operario' else "MARIA"
+            lineas.append(f"{prefijo}: {msg['contenido']}")
+        lineas.append("=== FIN HISTORIAL ===")
+        lineas.append("IMPORTANTE: Usa este historial para dar continuidad. NO repitas lo que ya dijiste. NO pidas informacion que el operario ya te dio.")
+        return "\n".join(lineas)
+
+    def _limpiar_historial_chat(self, chat_id: int) -> None:
+        """Limpia el historial al cerrar un incidente."""
+        self._historial_conversacion.pop(chat_id, None)
 
     def _chat_pausado(self, chat_id: int) -> bool:
         """Indica si un chat de operario tiene el flujo automatico pausado."""
@@ -1504,6 +1571,7 @@ class WorkerPeletizacion:
     def _reanudar_chat_operario(self, chat_id: int) -> None:
         """Reanuda el flujo automatico para un chat de operario."""
         self._chats_pausados_operacion.pop(chat_id, None)
+        self._limpiar_historial_chat(chat_id)
 
     async def _enviar_ficha_cierre_incidente(self, chat_id_origen: int) -> bool:
         """Genera una ficha de cierre para gerencia cuando el operario confirma solucion."""
