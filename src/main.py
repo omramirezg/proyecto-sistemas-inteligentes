@@ -748,19 +748,67 @@ class WorkerPeletizacion:
                 logger.error("Error enviando escalación de agente: %s", e)
 
     async def _procesar_eventos_chat(self) -> None:
-        """Atiende solicitudes de PDF y feedback hechas desde Telegram."""
+        """Atiende solicitudes del operario con debounce multimodal.
+
+        Si un chat_id tiene múltiples inputs (audio + texto + foto),
+        los agrupa y los procesa en UNA sola llamada a Gemini.
+        Si solo tiene un input, lo procesa individualmente (igual que antes).
+        """
         eventos = await self.telegram.obtener_eventos_chat()
-        for evento_audio in eventos['audio_operario']:
-            await self._procesar_audio_operario(evento_audio)
-            await asyncio.sleep(1)
 
-        for evento_texto in eventos['texto_operario']:
-            await self._procesar_texto_operario(evento_texto)
-            await asyncio.sleep(1)
+        # Agrupar inputs por chat_id para detectar envíos múltiples
+        inputs_por_chat: dict[int, dict] = {}
+        for ev in eventos['audio_operario']:
+            cid = int(ev['chat_id'])
+            inputs_por_chat.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
+            inputs_por_chat[cid]['audios'].append(ev)
+        for ev in eventos['texto_operario']:
+            cid = int(ev['chat_id'])
+            inputs_por_chat.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
+            inputs_por_chat[cid]['textos'].append(ev)
+        for ev in eventos['foto_operario']:
+            cid = int(ev['chat_id'])
+            inputs_por_chat.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
+            inputs_por_chat[cid]['fotos'].append(ev)
 
-        for evento_foto in eventos['foto_operario']:
-            await self._procesar_foto_operario(evento_foto)
-            await asyncio.sleep(1)
+        # Procesar cada chat_id
+        for chat_id, inputs in inputs_por_chat.items():
+            total = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
+
+            if total > 1:
+                # DEBOUNCE: múltiples inputs → esperar 8s por más, luego unificar
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    f"Recibidos {total} mensajes. Esperando 8 segundos por si envias mas...",
+                )
+                await asyncio.sleep(8)
+
+                # Recoger posibles nuevos mensajes durante la espera
+                eventos_extra = await self.telegram.obtener_eventos_chat()
+                for ev in eventos_extra['audio_operario']:
+                    if int(ev['chat_id']) == chat_id:
+                        inputs['audios'].append(ev)
+                for ev in eventos_extra['texto_operario']:
+                    if int(ev['chat_id']) == chat_id:
+                        inputs['textos'].append(ev)
+                for ev in eventos_extra['foto_operario']:
+                    if int(ev['chat_id']) == chat_id:
+                        inputs['fotos'].append(ev)
+
+                total_final = len(inputs['audios']) + len(inputs['textos']) + len(inputs['fotos'])
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id,
+                    f"Procesando {total_final} mensajes juntos con Gemini.",
+                )
+                await self._procesar_multimodal_unificado(chat_id, inputs)
+            elif total == 1:
+                # Un solo input → procesar individualmente (igual que antes)
+                if inputs['audios']:
+                    await self._procesar_audio_operario(inputs['audios'][0])
+                elif inputs['textos']:
+                    await self._procesar_texto_operario(inputs['textos'][0])
+                elif inputs['fotos']:
+                    await self._procesar_foto_operario(inputs['fotos'][0])
 
         for chat_id, estado in eventos['resolver_operacion']:
             if estado == 'SI':
@@ -1331,6 +1379,102 @@ class WorkerPeletizacion:
                 id_incidente=incidente_id,
                 tipo_evento='resolucion_por_foto',
                 descripcion='El operario confirmó resolución con evidencia fotográfica.',
+            )
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                await self.telegram.enviar_mensaje_simple(chat_id, "Monitoreo automatico reanudado.")
+        else:
+            await self.telegram.enviar_confirmacion_solucion(
+                chat_id,
+                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
+            )
+
+    async def _procesar_multimodal_unificado(self, chat_id: int, inputs: dict) -> None:
+        """Procesa múltiples inputs del operario (audio+texto+foto) en UNA llamada a Gemini."""
+        self._pausar_chat_operario(chat_id, motivo='multimodal_unificado')
+
+        contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+
+        # Preparar listas para el método unificado del LLM
+        audios_raw = [{'audio_bytes': a['audio_bytes'], 'mime_type': a.get('mime_type', 'audio/ogg')}
+                      for a in inputs['audios']]
+        textos_raw = [t['texto'] for t in inputs['textos']]
+        fotos_raw  = [f['foto_bytes'] for f in inputs['fotos']]
+
+        try:
+            resultado = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.llm.interpretar_multimodal_unificado,
+                    audios=audios_raw,
+                    textos=textos_raw,
+                    fotos=fotos_raw,
+                    prompt_texto=contexto,
+                ),
+                timeout=90,
+            )
+        except asyncio.TimeoutError:
+            n_total = len(audios_raw) + len(textos_raw) + len(fotos_raw)
+            resultado = {
+                'transcripcion': '; '.join(textos_raw[:3]) if textos_raw else '',
+                'intencion': 'OTRO',
+                'accion_detectada': f'Timeout procesando {n_total} inputs multimodales.',
+                'resumen_operario': 'El operario envió múltiples mensajes.',
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': 'Tarde demasiado procesando todos tus mensajes. Intenta enviar uno por uno.',
+                'senal_resolucion': 'NO',
+            }
+
+        # Incidente
+        lectura = self._ultima_lectura_publicada or {}
+        incidente_existente = self._incidentes_chat.get(chat_id, {})
+        incidente_id = int(incidente_existente.get('id_incidente', 0) or 0)
+        if not incidente_id:
+            incidente_id = self.memoria_incidentes.abrir_incidente(
+                chat_id=chat_id,
+                id_planta=str(lectura.get('id_planta', '001')),
+                id_maquina=str(lectura.get('id_maquina', '')),
+                id_formula=str(lectura.get('id_formula', '')),
+                codigo_producto=str(lectura.get('codigo_producto', '')),
+                descripcion=f'Operario envió {len(audios_raw)} audio(s), {len(textos_raw)} texto(s), {len(fotos_raw)} foto(s).',
+                metadata={'intencion': resultado.get('intencion', 'OTRO')},
+            )
+            self._incidentes_chat[chat_id] = {
+                'id_incidente': incidente_id,
+                'lectura': lectura,
+                'resultado_multimodal': resultado,
+            }
+
+        self.memoria_incidentes.registrar_evento(
+            id_incidente=incidente_id,
+            tipo_evento='multimodal_unificado',
+            descripcion=(
+                f"Input unificado: {len(audios_raw)} audio(s), "
+                f"{len(textos_raw)} texto(s), {len(fotos_raw)} foto(s). "
+                f"Intención: {resultado.get('intencion', 'OTRO')}"
+            ),
+        )
+
+        senal = (resultado.get('senal_resolucion') or 'NO').upper().strip()
+        estado_monitoreo = "Monitoreo normal activo."
+        if senal != 'SI':
+            self._pausar_chat_operario(chat_id, motivo=resultado.get('intencion', 'OTRO'))
+            estado_monitoreo = "Envio automatico pausado hasta que reportes solucion del problema."
+
+        respuesta = (
+            f"<b>Maria</b>\n"
+            f"{html.escape(resultado.get('respuesta_asistente') or 'Mensajes procesados.')}\n"
+            f"<b>Intencion:</b> {html.escape(resultado.get('intencion', 'OTRO'))} | "
+            f"<b>Urgencia:</b> {html.escape(resultado.get('nivel_urgencia', 'MEDIO'))}\n"
+            f"<i>{html.escape(estado_monitoreo)}</i>"
+        )
+        await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+
+        if senal == 'SI':
+            self.memoria_incidentes.registrar_evento(
+                id_incidente=incidente_id,
+                tipo_evento='resolucion_multimodal',
+                descripcion='Operario confirmó resolución via inputs multimodales.',
             )
             cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
             if cierre_ok:

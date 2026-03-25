@@ -1189,6 +1189,148 @@ Reglas:
             }
 
 
+    def interpretar_multimodal_unificado(
+        self,
+        audios: list[dict],
+        textos: list[str],
+        fotos: list[bytes],
+        prompt_texto: str,
+    ) -> dict:
+        """Interpreta múltiples inputs del operario en UNA sola llamada a Gemini.
+
+        Cuando el operario manda foto + audio + texto en secuencia rápida,
+        el debounce los acumula y esta función los procesa todos juntos.
+        Gemini recibe todas las partes multimodales en un solo request.
+
+        Args:
+            audios: Lista de dicts con 'audio_bytes' y 'mime_type'
+            textos: Lista de strings con mensajes de texto
+            fotos:  Lista de bytes de imágenes JPEG
+            prompt_texto: Contexto operativo actual
+
+        Returns:
+            dict con la misma estructura que interpretar_audio_operario
+        """
+        try:
+            from google.genai import types
+
+            cliente = self._obtener_cliente_genai()
+            conocimiento_planta = self._cargar_base_conocimiento()
+
+            # Construir descripción de lo que se recibió
+            resumen_inputs = []
+            if audios:
+                resumen_inputs.append(f"{len(audios)} nota(s) de voz")
+            if textos:
+                resumen_inputs.append(f"{len(textos)} mensaje(s) de texto")
+            if fotos:
+                resumen_inputs.append(f"{len(fotos)} foto(s)")
+            desc_inputs = ", ".join(resumen_inputs)
+
+            instruccion = f"""
+Eres María, Ingeniera de Procesos Senior en una planta de peletización industrial.
+El operario te envió MÚLTIPLES inputs de una sola vez: {desc_inputs}.
+Analiza TODO el contenido en conjunto y responde SOLO en JSON valido.
+
+{conocimiento_planta}
+
+Contexto operativo actual:
+{prompt_texto}
+
+"""
+            # Agregar textos del operario al prompt
+            for i, txt in enumerate(textos, 1):
+                instruccion += f'\nMensaje de texto {i}: "{txt}"'
+
+            instruccion += f"""
+
+Formato requerido:
+{{
+  "transcripcion": "Resumen unificado de todo lo que el operario comunicó (audio + texto + foto)",
+  "intencion": "ACCION_EJECUTADA | FALSO_POSITIVO | MANTENIMIENTO | OBSERVACION_OPERATIVA | ESCALAMIENTO | OTRO",
+  "accion_detectada": "Acción principal que el operario reporta o solicita",
+  "resumen_operario": "Síntesis breve de lo que comunica el operario integrando todos los inputs",
+  "nivel_urgencia": "BAJO | MEDIO | ALTO",
+  "respuesta_asistente": "Respuesta de María considerando TODA la información recibida (audio + texto + foto). Máximo 3 oraciones. Sé específica con equipos y procedimientos.",
+  "senal_resolucion": "SI | NO"
+}}
+
+Reglas:
+- Integra la información de TODOS los inputs en una respuesta coherente.
+- Si hay fotos, describe lo que ves y relaciónalo con el audio/texto.
+- Si hay contradicciones entre inputs, mencionalo y pide aclaración.
+- Responde en español.
+"""
+            # Construir partes multimodales
+            partes = []
+
+            for audio in audios:
+                partes.append(types.Part.from_bytes(
+                    data=audio['audio_bytes'],
+                    mime_type=audio.get('mime_type', 'audio/ogg'),
+                ))
+
+            for foto in fotos:
+                partes.append(types.Part.from_bytes(
+                    data=foto,
+                    mime_type='image/jpeg',
+                ))
+
+            partes.append(instruccion)
+
+            logger.info(
+                "[MULTIMODAL UNIFICADO] Procesando %s en una sola llamada",
+                desc_inputs,
+            )
+
+            _max_reintentos = 3
+            _espera_base = 4
+            response = None
+            for _reintento in range(_max_reintentos):
+                try:
+                    response = cliente.models.generate_content(
+                        model=self.config.gemini_model,
+                        contents=partes,
+                        config=types.GenerateContentConfig(
+                            temperature=0.2,
+                        ),
+                    )
+                    break
+                except Exception as _err:
+                    _es_429 = '429' in str(_err) or 'RESOURCE_EXHAUSTED' in str(_err)
+                    if _es_429 and _reintento < _max_reintentos - 1:
+                        _espera = _espera_base * (2 ** _reintento)
+                        logger.warning(
+                            "[MULTIMODAL UNIFICADO] Rate limit 429. Reintento %d/%d en %ds...",
+                            _reintento + 1, _max_reintentos, _espera,
+                        )
+                        time.sleep(_espera)
+                    else:
+                        raise
+
+            return self._parsear_json_audio(response.text.strip())
+
+        except Exception as e:
+            logger.error(
+                "[MULTIMODAL UNIFICADO] Error: %s | audios=%d textos=%d fotos=%d",
+                e, len(audios), len(textos), len(fotos),
+                exc_info=True,
+            )
+            resumen_textos = "; ".join(textos[:3]) if textos else "Sin texto"
+            return {
+                'transcripcion': resumen_textos,
+                'intencion': 'OTRO',
+                'accion_detectada': 'Error procesando inputs multimodales.',
+                'resumen_operario': resumen_textos[:300],
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': (
+                    'No pude procesar todos los mensajes juntos. '
+                    'Intenta enviar uno por uno.'
+                ),
+                'senal_resolucion': 'NO',
+            }
+
+
 def construir_contexto_alerta(
     tipo_alerta: str,
     id_planta: str,
