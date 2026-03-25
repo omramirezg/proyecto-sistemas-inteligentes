@@ -781,12 +781,12 @@ class WorkerPeletizacion:
             if total == 0:
                 continue
 
-            # SIEMPRE esperar 5 segundos para recoger más mensajes del operario
+            # SIEMPRE esperar 10 segundos para recoger más mensajes del operario
             await self.telegram.enviar_mensaje_simple(
                 chat_id,
-                "Recibido. Esperando 5 segundos por si envias algo mas...",
+                "Recibido. Esperando 10 segundos por si envias algo mas...",
             )
-            await asyncio.sleep(5)
+            await asyncio.sleep(10)
 
             # Recoger mensajes que llegaron durante la espera
             eventos_extra = await self.telegram.obtener_eventos_chat()
