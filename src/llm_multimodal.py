@@ -954,6 +954,97 @@ Reglas:
                 'senal_resolucion': 'NO',
             }
 
+    def interpretar_texto_operario(
+        self,
+        texto_operario: str,
+        prompt_texto: str,
+    ) -> dict:
+        """Interpreta un mensaje de texto del operario (mismo flujo que audio, sin STT)."""
+        try:
+            from google.genai import types
+
+            cliente = self._obtener_cliente_genai()
+            conocimiento_planta = self._cargar_base_conocimiento()
+            instruccion = f"""
+Eres María, Ingeniera de Procesos Senior en una planta de peletización industrial.
+El operario te envió un mensaje de TEXTO (no audio). Responde SOLO en JSON valido.
+
+{conocimiento_planta}
+
+Contexto operativo actual:
+{prompt_texto}
+
+Mensaje del operario:
+"{texto_operario}"
+
+Formato requerido:
+{{
+  "transcripcion": "{texto_operario}",
+  "intencion": "ACCION_EJECUTADA | FALSO_POSITIVO | MANTENIMIENTO | OBSERVACION_OPERATIVA | ESCALAMIENTO | OTRO",
+  "accion_detectada": "...",
+  "resumen_operario": "...",
+  "nivel_urgencia": "BAJO | MEDIO | ALTO",
+  "respuesta_asistente": "...",
+  "senal_resolucion": "SI | NO"
+}}
+
+Reglas:
+- "transcripcion" ya está dada arriba (es el texto del operario tal cual).
+- "resumen_operario" debe capturar la INFORMACION NUEVA que el operario aporta.
+- "respuesta_asistente" debe ser la respuesta de Maria, maximo 2 oraciones, directa y accionable.
+  IMPORTANTE: La respuesta DEBE ser COHERENTE con lo que el operario dice.
+  Si el operario descarta una causa, Maria NO debe recomendar revisar esa misma causa.
+  Maria debe sugerir la SIGUIENTE accion logica basada en lo que el operario reporta.
+- "senal_resolucion" debe ser SI solo si el operario confirma que el problema se soluciono.
+- Responde en espanol.
+"""
+
+            _max_reintentos = 3
+            _espera_base = 4
+            response = None
+            for _reintento in range(_max_reintentos):
+                try:
+                    response = cliente.models.generate_content(
+                        model=self.config.gemini_audio_model,
+                        contents=[instruccion],
+                        config=types.GenerateContentConfig(
+                            temperature=0.2,
+                        ),
+                    )
+                    break
+                except Exception as _err:
+                    _es_429 = '429' in str(_err) or 'RESOURCE_EXHAUSTED' in str(_err)
+                    if _es_429 and _reintento < _max_reintentos - 1:
+                        _espera = _espera_base * (2 ** _reintento)
+                        logger.warning(
+                            "[TEXTO] Rate limit 429. Reintento %d/%d en %ds...",
+                            _reintento + 1, _max_reintentos, _espera,
+                        )
+                        time.sleep(_espera)
+                    else:
+                        raise
+
+            return self._parsear_json_audio(response.text.strip())
+
+        except Exception as e:
+            logger.error(
+                "Error interpretando texto del operario con Gemini: %s | texto='%s'",
+                e, texto_operario[:100],
+                exc_info=True,
+            )
+            return {
+                'transcripcion': texto_operario,
+                'intencion': 'OTRO',
+                'accion_detectada': 'No fue posible interpretar el texto con Gemini.',
+                'resumen_operario': texto_operario,
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': (
+                    'No pude procesar tu mensaje en este momento. '
+                    'Intenta de nuevo o envia una nota de voz.'
+                ),
+                'senal_resolucion': 'NO',
+            }
+
     def _parsear_json_audio(self, texto: str) -> dict:
         """Parsea la respuesta del modelo para audio del operario."""
         try:

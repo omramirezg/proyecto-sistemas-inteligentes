@@ -751,6 +751,10 @@ class WorkerPeletizacion:
             await self._procesar_audio_operario(evento_audio)
             await asyncio.sleep(1)
 
+        for evento_texto in eventos['texto_operario']:
+            await self._procesar_texto_operario(evento_texto)
+            await asyncio.sleep(1)
+
         for chat_id, estado in eventos['resolver_operacion']:
             if estado == 'SI':
                 incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
@@ -1137,6 +1141,101 @@ class WorkerPeletizacion:
                 tipo_evento='espera_confirmacion',
                 descripcion='El sistema queda pausado esperando confirmacion de solucion.',
             )
+            await self.telegram.enviar_confirmacion_solucion(
+                chat_id,
+                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
+            )
+
+    async def _procesar_texto_operario(self, evento_texto: dict[str, Any]) -> None:
+        """Interpreta un mensaje de texto libre del operario (misma lógica que audio, sin STT)."""
+        chat_id = int(evento_texto['chat_id'])
+        texto_operario = evento_texto['texto']
+
+        self._pausar_chat_operario(chat_id, motivo='texto_recibido')
+        await self.telegram.enviar_mensaje_simple(
+            chat_id,
+            "Mensaje recibido. Procesando con Gemini.",
+        )
+
+        contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
+        try:
+            resultado = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.llm.interpretar_texto_operario,
+                    texto_operario=texto_operario,
+                    prompt_texto=contexto,
+                ),
+                timeout=60,
+            )
+        except asyncio.TimeoutError:
+            resultado = {
+                'transcripcion': texto_operario,
+                'intencion': 'OTRO',
+                'accion_detectada': 'Timeout procesando el mensaje.',
+                'resumen_operario': texto_operario,
+                'nivel_urgencia': 'MEDIO',
+                'respuesta_asistente': 'Tarde demasiado en procesar tu mensaje. Intenta de nuevo.',
+                'senal_resolucion': 'NO',
+            }
+
+        # Reutilizar la misma lógica de incidentes que el audio
+        lectura = self._ultima_lectura_publicada or {}
+        incidente_existente = self._incidentes_chat.get(chat_id, {})
+        incidente_id = int(incidente_existente.get('id_incidente', 0) or 0)
+        if not incidente_id:
+            incidente_id = self.memoria_incidentes.abrir_incidente(
+                chat_id=chat_id,
+                id_planta=str(lectura.get('id_planta', '001')),
+                id_maquina=str(lectura.get('id_maquina', '')),
+                id_formula=str(lectura.get('id_formula', '')),
+                codigo_producto=str(lectura.get('codigo_producto', '')),
+                descripcion='El operario envio un mensaje de texto para actualizar el incidente.',
+                metadata={
+                    'intencion': resultado.get('intencion', 'OTRO'),
+                    'texto_operario': texto_operario[:200],
+                },
+            )
+            self._incidentes_chat[chat_id] = {
+                'id_incidente': incidente_id,
+                'lectura': lectura,
+                'resultado_texto': resultado,
+            }
+
+        self.memoria_incidentes.registrar_evento(
+            id_incidente=incidente_id,
+            tipo_evento='texto_operario',
+            descripcion=f"Texto: {texto_operario[:200]}",
+        )
+
+        # Determinar si el operario confirmó resolución
+        senal = (resultado.get('senal_resolucion') or 'NO').upper().strip()
+        estado_monitoreo = "Monitoreo normal activo."
+
+        if senal != 'SI':
+            self._pausar_chat_operario(chat_id, motivo=resultado.get('intencion', 'OTRO'))
+            estado_monitoreo = "Envio automatico pausado hasta que reportes solucion del problema."
+
+        respuesta = (
+            f"<b>Maria</b>\n"
+            f"{html.escape(resultado.get('respuesta_asistente') or resultado.get('resumen_operario', 'Sin novedades.'))}\n"
+            f"<b>Intencion:</b> {html.escape(resultado.get('intencion', 'OTRO'))} | "
+            f"<b>Urgencia:</b> {html.escape(resultado.get('nivel_urgencia', 'MEDIO'))}\n"
+            f"<i>{html.escape(estado_monitoreo)}</i>"
+        )
+        await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+
+        if senal == 'SI':
+            self.memoria_incidentes.registrar_evento(
+                id_incidente=incidente_id,
+                tipo_evento='resolucion_por_texto',
+                descripcion='El operario confirmó resolución por texto.',
+            )
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id, "Monitoreo automatico reanudado.")
+        else:
             await self.telegram.enviar_confirmacion_solucion(
                 chat_id,
                 "Confirma cuando la novedad quede atendida para reanudar los reportes.",

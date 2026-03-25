@@ -362,6 +362,7 @@ class TelegramNotificador(NotificadorBase):
             'ficha_gerencial': [],
             'explicar_evento': [],
             'audio_operario': [],
+            'texto_operario': [],
             'feedback': [],
             'resolver_operacion': [],
         }
@@ -458,24 +459,46 @@ class TelegramNotificador(NotificadorBase):
             if message.text is None:
                 continue
 
-            texto = message.text.strip().lower()
-            if texto in {'solicitar pdf', '/pdf', 'pdf'}:
+            texto = message.text.strip()
+            texto_lower = texto.lower()
+
+            # Comandos conocidos — se procesan como acciones, NO como texto del operario
+            _comandos = {
+                'solicitar pdf', '/pdf', 'pdf',
+                'solicitar dashboard', '/dashboard', 'dashboard',
+                'solicitar ficha operario', '/ficha_operario', 'ficha operario',
+                'solicitar ficha gerencial', '/ficha_gerencial', 'ficha gerencial',
+                'explicar evento', '/explicar_evento', 'explicar',
+                '/start', '/help', '/ayuda',
+            }
+            es_comando = texto_lower in _comandos
+
+            # Si NO es comando y tiene >5 caracteres, es texto libre del operario
+            if not es_comando and len(texto) > 5:
+                eventos['texto_operario'].append({
+                    'chat_id': message.chat_id,
+                    'texto': texto,
+                    'tipo_entrada': 'texto',
+                })
+                continue
+
+            if texto_lower in {'solicitar pdf', '/pdf', 'pdf'}:
                 chat_id = message.chat_id
                 if chat_id not in eventos['pdf']:
                     eventos['pdf'].append(chat_id)
-            if texto in {'solicitar dashboard', '/dashboard', 'dashboard'}:
+            if texto_lower in {'solicitar dashboard', '/dashboard', 'dashboard'}:
                 chat_id = message.chat_id
                 if chat_id not in eventos['dashboard']:
                     eventos['dashboard'].append(chat_id)
-            if texto in {'solicitar ficha operario', '/ficha_operario', 'ficha operario'}:
+            if texto_lower in {'solicitar ficha operario', '/ficha_operario', 'ficha operario'}:
                 chat_id = message.chat_id
                 if chat_id not in eventos['ficha_operario']:
                     eventos['ficha_operario'].append(chat_id)
-            if texto in {'solicitar ficha gerencial', '/ficha_gerencial', 'ficha gerencial'}:
+            if texto_lower in {'solicitar ficha gerencial', '/ficha_gerencial', 'ficha gerencial'}:
                 chat_id = message.chat_id
                 if chat_id not in eventos['ficha_gerencial']:
                     eventos['ficha_gerencial'].append(chat_id)
-            if texto in {'explicar evento', '/explicar_evento', 'explicar'}:
+            if texto_lower in {'explicar evento', '/explicar_evento', 'explicar'}:
                 chat_id = message.chat_id
                 if chat_id not in eventos['explicar_evento']:
                     eventos['explicar_evento'].append(chat_id)
