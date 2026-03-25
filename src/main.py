@@ -93,6 +93,7 @@ class WorkerPeletizacion:
         self._historial_conversacion: dict[int, list[dict[str, str]]] = {}
         # Buffer de mensajes pendientes por chat — el operario acumula y presiona "Enviar consulta"
         self._buffer_mensajes: dict[int, dict[str, list]] = {}
+        self._boton_consulta_enviado: set[int] = set()  # chat_ids que ya tienen botón visible
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -776,19 +777,23 @@ class WorkerPeletizacion:
             self._buffer_mensajes.setdefault(cid, {'audios': [], 'textos': [], 'fotos': []})
             self._buffer_mensajes[cid]['fotos'].append(ev)
 
-        # Mostrar botón "Enviar consulta" a chats con mensajes nuevos acumulados
-        for cid in set(
+        # Mostrar botón "Enviar consulta" solo una vez por tanda
+        chats_con_nuevos = set(
             [int(e['chat_id']) for e in eventos['audio_operario']] +
             [int(e['chat_id']) for e in eventos['texto_operario']] +
             [int(e['chat_id']) for e in eventos['foto_operario']]
-        ):
-            buf = self._buffer_mensajes.get(cid, {})
-            n = len(buf.get('audios', [])) + len(buf.get('textos', [])) + len(buf.get('fotos', []))
-            if n > 0:
-                await self.telegram.enviar_boton_consulta(cid, n)
+        )
+        for cid in chats_con_nuevos:
+            if cid not in self._boton_consulta_enviado:
+                buf = self._buffer_mensajes.get(cid, {})
+                n = len(buf.get('audios', [])) + len(buf.get('textos', [])) + len(buf.get('fotos', []))
+                if n > 0:
+                    await self.telegram.enviar_boton_consulta(cid, n)
+                    self._boton_consulta_enviado.add(cid)
 
         # Procesar cuando el operario presiona "Enviar consulta"
         for chat_id in eventos.get('enviar_consulta', []):
+            self._boton_consulta_enviado.discard(chat_id)
             inputs = self._buffer_mensajes.pop(chat_id, None)
             if not inputs:
                 continue
