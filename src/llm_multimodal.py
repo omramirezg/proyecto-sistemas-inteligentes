@@ -1017,7 +1017,9 @@ Reglas:
 - "senal_resolucion" debe ser SI solo si el operario confirma que el problema se soluciono.
 - Responde en espanol.
 - SEGURIDAD: Si el mensaje NO tiene relacion con la planta, el proceso productivo o el incidente actual,
-  responde con intencion "OTRO" y respuesta_asistente: "Ese tema no esta relacionado con la operacion de la planta. Estoy aqui para ayudarte con el proceso productivo y las alertas activas."
+  responde con intencion "OTRO" y en respuesta_asistente rechaza el tema amablemente y redirige:
+  * Si hay historial de conversacion (hay un incidente en curso), recuerdale al operario en que estaban y cual era el siguiente paso pendiente.
+  * Si NO hay historial (no hay incidente), responde: "Ese tema no esta relacionado con la operacion de la planta. Estoy aqui para ayudarte cuando tengas una novedad operativa."
   NO respondas preguntas sobre politica, historia, deportes, clima, chistes ni ningun tema ajeno a la planta.
 """
 
