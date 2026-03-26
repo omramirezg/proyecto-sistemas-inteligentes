@@ -791,6 +791,9 @@ class WorkerPeletizacion:
             await self._procesar_foto_operario(evento_foto)
 
         for chat_id, estado in eventos['resolver_operacion']:
+            # Ignorar si no hay incidente abierto (botón viejo presionado después de cerrar)
+            if chat_id not in self._chats_pausados_operacion:
+                continue
             if estado == 'SI':
                 incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
                 if incidente_id:
