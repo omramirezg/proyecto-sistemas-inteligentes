@@ -99,6 +99,9 @@ class WorkerPeletizacion:
         self._ultima_actividad_chat: dict[int, float] = {}
         self._INACTIVIDAD_SEG = 300  # 5 minutos sin actividad → mostrar botones
         self._recordatorio_enviado: set[int] = set()  # chats que ya recibieron recordatorio
+        # Chats pendientes de cierre — esperando que el operario explique qué hizo
+        # Guarda {chat_id: timestamp} para timeout de 2 min
+        self._pendiente_cierre: dict[int, float] = {}
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -1123,8 +1126,42 @@ class WorkerPeletizacion:
         )
 
         senal_resolucion = str(resultado.get('senal_resolucion', 'NO')).strip().upper() == 'SI'
+
+        # Si el chat está pendiente de cierre, el operario está explicando qué hizo
+        # → cerrar con esta info
+        if chat_id in self._pendiente_cierre:
+            self._pendiente_cierre.pop(chat_id, None)
+            estado_monitoreo = "Monitoreo normal activo."
+            respuesta = (
+                f"<b>Maria</b>\n"
+                f"{html.escape(resultado.get('respuesta_asistente') or 'Entendido. Cerrando incidente.')}\n"
+                f"<b>Intencion:</b> ACCION_EJECUTADA | "
+                f"<b>Urgencia:</b> BAJO\n"
+                f"<i>{html.escape(estado_monitoreo)}</i>"
+            )
+            await self.telegram.enviar_mensaje_simple(chat_id, respuesta)
+            self._registrar_en_historial(chat_id, 'operario', resultado.get('transcripcion', '(audio)'))
+            self._registrar_en_historial(chat_id, 'maria', resultado.get('respuesta_asistente', ''))
+
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                self._limpiar_historial_chat(chat_id)
+                self.memoria_incidentes.registrar_evento(
+                    id_incidente=incidente_id,
+                    tipo_evento='monitoreo_reanudado',
+                    descripcion='Monitoreo reanudado tras cierre con detalle del operario.',
+                )
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id, "Monitoreo automatico reanudado.",
+                )
+            return
+
+        # Detectó señal de resolución → NO cerrar aún, pedir detalles
         if senal_resolucion:
-            estado_monitoreo = "Cierre detectado. Generando ficha de incidente antes de reanudar monitoreo."
+            import time as _time
+            self._pendiente_cierre[chat_id] = _time.time()
+            estado_monitoreo = "Esperando detalle de la accion realizada."
         else:
             self._pausar_chat_operario(
                 chat_id,
@@ -1154,33 +1191,6 @@ class WorkerPeletizacion:
                 'senal_resolucion': resultado.get('senal_resolucion', 'NO'),
             },
         )
-        if senal_resolucion:
-            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
-            if cierre_ok:
-                self._reanudar_chat_operario(chat_id)
-                self._limpiar_historial_chat(chat_id)
-                self.memoria_incidentes.registrar_evento(
-                    id_incidente=incidente_id,
-                    tipo_evento='monitoreo_reanudado',
-                    descripcion='El monitoreo automatico fue reanudado tras cierre por audio.',
-                )
-                await self.telegram.enviar_mensaje_simple(
-                    chat_id,
-                    "Monitoreo automatico reanudado. La ficha de cierre ya fue enviada.",
-                )
-            else:
-                await self.telegram.enviar_mensaje_simple(
-                    chat_id,
-                    "No pude generar aun la ficha de cierre. El sistema sigue en espera.",
-                )
-        else:
-            self.memoria_incidentes.registrar_evento(
-                id_incidente=incidente_id,
-                tipo_evento='espera_confirmacion',
-                descripcion='El sistema queda pausado esperando confirmacion de solucion.',
-            )
-            # No mostramos botones — el operario cierra con texto/audio natural
-            # Si hay inactividad, el timer mostrará los botones
 
     async def _procesar_texto_operario(self, evento_texto: dict[str, Any]) -> None:
         """Interpreta un mensaje de texto libre del operario (misma lógica que audio, sin STT)."""
@@ -1475,13 +1485,29 @@ class WorkerPeletizacion:
             self._historial_conversacion[chat_id] = self._historial_conversacion[chat_id][-20:]
 
     async def _verificar_inactividad_chats(self) -> None:
-        """Si un chat con incidente lleva 5 min sin actividad, muestra botones de confirmacion."""
+        """Verifica timeouts: pendiente de cierre (20s) e inactividad general (5min)."""
         import time as _time
         ahora = _time.time()
+
+        # 1. Pendientes de cierre: si el operario no respondió en 20s, cerrar sin detalles
+        for chat_id, ts in list(self._pendiente_cierre.items()):
+            if ahora - ts >= 20:
+                self._pendiente_cierre.pop(chat_id, None)
+                cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+                if cierre_ok:
+                    self._reanudar_chat_operario(chat_id)
+                    self._limpiar_historial_chat(chat_id)
+                    await self.telegram.enviar_mensaje_simple(
+                        chat_id, "Monitoreo automatico reanudado.",
+                    )
+
+        # 2. Inactividad general: 5 min sin actividad → mostrar botones
         for chat_id, ts in list(self._ultima_actividad_chat.items()):
             if chat_id in self._recordatorio_enviado:
                 continue
             if chat_id not in self._chats_pausados_operacion:
+                continue
+            if chat_id in self._pendiente_cierre:
                 continue
             if ahora - ts >= self._INACTIVIDAD_SEG:
                 self._recordatorio_enviado.add(chat_id)
@@ -1512,6 +1538,7 @@ class WorkerPeletizacion:
         self._ultima_actividad_chat.pop(chat_id, None)
         self._recordatorio_enviado.discard(chat_id)
         self._ultima_foto_operario.pop(chat_id, None)
+        self._pendiente_cierre.pop(chat_id, None)
 
     def _persistir_conversacion(self, chat_id: int, historial: list[dict]) -> None:
         """Guarda la conversación completa en CSV para RAG/RLHF futuro."""
