@@ -17,12 +17,6 @@ class NotificadorBase(ABC):
     """Interfaz base para notificaciones."""
 
     @abstractmethod
-    async def enviar_alerta_texto(
-        self, chat_id: int, texto_alerta: str, alerta_id: int
-    ) -> bool:
-        ...
-
-    @abstractmethod
     async def enviar_mensaje_simple(self, chat_id: int, texto: str) -> bool:
         ...
 
@@ -114,31 +108,6 @@ class TelegramNotificador(NotificadorBase):
     async def _obtener_bot(self):
         from telegram import Bot
         return Bot(token=self.token)
-
-    async def enviar_alerta_texto(
-        self, chat_id: int, texto_alerta: str, alerta_id: int
-    ) -> bool:
-        try:
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-
-            bot = await self._obtener_bot()
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("Util y Aplicado", callback_data=f"feedback:{alerta_id}:UTIL")],
-                [InlineKeyboardButton("Falso Positivo", callback_data=f"feedback:{alerta_id}:FALSO_POSITIVO")],
-                [InlineKeyboardButton("Falla Mecanica", callback_data=f"feedback:{alerta_id}:FALLA_MECANICA")],
-            ])
-
-            await bot.send_message(
-                chat_id=chat_id,
-                text=texto_alerta,
-                parse_mode='HTML',
-                reply_markup=keyboard,
-            )
-            logger.info("Alerta texto enviada: chat_id=%d, alerta_id=%d", chat_id, alerta_id)
-            return True
-        except Exception as e:
-            logger.error("Error enviando alerta texto a chat_id=%d: %s", chat_id, e)
-            return False
 
     async def enviar_mensaje_simple(self, chat_id: int, texto: str) -> bool:
         try:
@@ -556,50 +525,5 @@ class TelegramNotificador(NotificadorBase):
         return eventos
 
 
-def formatear_alerta_html(
-    tipo_alerta: str,
-    id_planta: str,
-    id_maquina: str,
-    id_formula: str,
-    codigo_producto: str,
-    variable: str,
-    valor_suavizado: float,
-    limite_violado: float,
-    limite_min: float,
-    limite_max: float,
-    porcentaje_carga: float,
-    timestamp: datetime,
-    es_retorno_normal: bool = False,
-) -> str:
-    """Mantiene compatibilidad con el formato anterior de alertas."""
-    nombres = {
-        'presion_vapor': 'Presion de Vapor',
-        'temp_acond': 'Temperatura Acondicionador',
-    }
-    nombre_var = nombres.get(variable, variable)
-    hora = timestamp.strftime('%H:%M:%S')
-    fecha = timestamp.strftime('%Y-%m-%d')
 
-    if es_retorno_normal:
-        return (
-            f"<b>PROCESO ESTABLE</b>\n"
-            f"Planta <b>{id_planta}</b> | Maq <b>{id_maquina}</b>\n"
-            f"Formula {id_formula} ({codigo_producto})\n"
-            f"{nombre_var} retorno a banda normal\n"
-            f"Banda: [{limite_min:.1f} - {limite_max:.1f}]\n"
-            f"Valor actual (EMA): <b>{valor_suavizado:.2f}</b>\n"
-            f"Carga: {porcentaje_carga:.0f}%\n"
-            f"{fecha} {hora}\n"
-        )
-
-    return (
-        f"<b>ALERTA: {tipo_alerta.replace('_', ' ')}</b>\n"
-        f"Planta <b>{id_planta}</b> | Maq <b>{id_maquina}</b>\n"
-        f"Formula {id_formula} ({codigo_producto})\n"
-        f"<b>{nombre_var}</b>\n"
-        f"Valor suavizado (EMA): <b>{valor_suavizado:.2f}</b>\n"
-        f"Limite violado: <b>{limite_violado:.1f}</b>\n"
-        f"Banda permitida: [{limite_min:.1f} - {limite_max:.1f}]\n"
-        f"Carga del motor: {porcentaje_carga:.0f}%\n"
-        f"{fecha} {hora}"
-    )
+# (formatear_alerta_html removido — código muerto, nunca fue llamado)

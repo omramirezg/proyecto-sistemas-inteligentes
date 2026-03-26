@@ -1340,51 +1340,5 @@ Reglas:
             }
 
 
-def construir_contexto_alerta(
-    tipo_alerta: str,
-    id_planta: str,
-    id_maquina: str,
-    id_formula: str,
-    codigo_producto: str,
-    variable: str,
-    valor_crudo: float,
-    valor_suavizado: float,
-    limite_min: float,
-    limite_max: float,
-    corriente_suavizada: float,
-    capacidad_nominal: float,
-    porcentaje_carga: float,
-) -> str:
-    """
-    Construye el contexto técnico que se inyecta al LLM en cada alerta.
-    
-    Esta es la "Matriz de Toma de Decisiones (Features)" que el motor
-    determinista le proporciona a la IA para generar prescripciones
-    informadas y libres de alucinaciones.
-    """
-    nombres = {
-        'presion_vapor': 'Presión de Vapor',
-        'temp_acond': 'Temperatura del Acondicionador',
-    }
-    nombre_var = nombres.get(variable, variable)
 
-    return f"""
-### DATOS DEL EQUIPO
-- **Planta**: {id_planta}
-- **Máquina peletizadora**: {id_maquina}
-- **Capacidad nominal**: {capacidad_nominal:.0f} unidades
-- **Carga actual**: {porcentaje_carga:.1f}% ({corriente_suavizada:.1f} A)
-
-### FÓRMULA EN OPERACIÓN
-- **ID Fórmula**: {id_formula}
-- **Código Producto**: {codigo_producto}
-
-### DESVIACIÓN DETECTADA
-- **Tipo de alerta**: {tipo_alerta}
-- **Variable afectada**: {nombre_var}
-- **Valor crudo del sensor**: {valor_crudo:.2f}
-- **Valor suavizado (EMA)**: {valor_suavizado:.2f}
-- **Límite mínimo permitido**: {limite_min:.1f}
-- **Límite máximo permitido**: {limite_max:.1f}
-- **Desviación**: {abs(valor_suavizado - (limite_min if 'BAJA' in tipo_alerta else limite_max)):.2f} unidades fuera de banda
-"""
+# (construir_contexto_alerta removido — código muerto, nunca fue llamado)

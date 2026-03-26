@@ -23,7 +23,7 @@ from config_loader import ConfigLoader
 from data_loader import DataLoader
 from motor_reglas import MotorReglas
 from generador_graficas import GeneradorGraficas
-from tts_service import GoogleTTSProvider
+# TTS removido — no se usa en el pipeline actual
 from telegram_bot import TelegramNotificador
 from generador_pdf import GeneradorPDF
 from historial_alertas import HistorialAlertas
@@ -55,7 +55,7 @@ class WorkerPeletizacion:
         self.data_loader = DataLoader(self.config)
         self.motor = MotorReglas(self.config)
         self.graficas = GeneradorGraficas()
-        self.tts = GoogleTTSProvider(self.config)
+        # TTS removido — no se usa en el pipeline actual
         self.telegram = TelegramNotificador(self.config)
         self.pdf_gen = GeneradorPDF(self.config)
         self.historial = HistorialAlertas(self.config)
