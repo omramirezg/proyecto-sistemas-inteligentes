@@ -463,7 +463,7 @@ class WorkerPeletizacion:
             imagen_bytes=imagen_bytes,
             video_bytes=video_bytes,
         )
-        texto_operario += "\n<i>Si necesitas apoyo, enviame una nota de voz.</i>"
+        # Mensaje limpio sin texto de ayuda — el operario ya sabe cómo interactuar
         texto_gerencial = ConstructorMensajes.mensaje_gerencial(
             lectura=lectura,
             estado_global=estado_global,
