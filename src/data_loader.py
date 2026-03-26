@@ -150,19 +150,6 @@ class DataLoader:
         self._ciclos_desde_recarga = 0
         logger.info("Todas las tablas maestras cargadas correctamente.")
 
-    def verificar_recarga_maestros(self) -> None:
-        """
-        Verifica si es momento de recargar las tablas maestras.
-        
-        Las tablas maestras son Slow Data y no necesitan
-        recargarse en cada ciclo del worker.
-        """
-        self._ciclos_desde_recarga += 1
-        if self._ciclos_desde_recarga >= self._intervalo_recarga_maestros:
-            logger.info("Recargando tablas maestras (ciclo %d)...",
-                        self._ciclos_desde_recarga)
-            self.cargar_todos_los_maestros()
-
     # =====================================================
     # Carga de Telemetría (Fast Data)
     # =====================================================
