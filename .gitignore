@@ -39,3 +39,4 @@ Thumbs.db
 *.swp
 *.swo
 docs/node_modules/
+data/chromadb/

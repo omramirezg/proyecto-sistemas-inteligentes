@@ -37,8 +37,11 @@ class RAGRetriever:
         try:
             import chromadb
 
-            # ChromaDB en memoria (sin servidor, sin disco)
-            self._client = chromadb.Client()
+            # ChromaDB persistente en disco — los datos sobreviven reinicios
+            import os
+            db_path = os.path.join(self._data_dir, "chromadb")
+            os.makedirs(db_path, exist_ok=True)
+            self._client = chromadb.PersistentClient(path=db_path)
 
             # Crear colecciones
             self._col_fallas = self._client.get_or_create_collection(
