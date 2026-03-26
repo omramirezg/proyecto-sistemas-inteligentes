@@ -41,6 +41,7 @@ from analizador_telemetria import AnalizadorTelemetria
 from constructor_prompts import ConstructorPrompts
 from constructor_mensajes import ConstructorMensajes
 from feature_store import FeatureStore
+from rag_retriever import RAGRetriever
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,8 @@ class WorkerPeletizacion:
         self.shadow_tester    = ShadowTester(self.llm, self.config)
         self.generador_video  = GeneradorVideoTelemetria(ventana_lecturas=30, n_frames=10)
         self.feature_store    = FeatureStore(ventana=30)
+        self.rag              = RAGRetriever(config_dir='config', data_dir=self.config.data_dir)
+        self.rag.inicializar()
         self._ciclos_sin_deriva = 0   # Contador para chequeo periódico de deriva
         self.email_service = EmailService(self.config)
         self.memoria_incidentes = MemoriaIncidentes(self.config)
@@ -1553,6 +1556,10 @@ class WorkerPeletizacion:
         historial = self._historial_conversacion.get(chat_id, [])
         if historial:
             self._persistir_conversacion(chat_id, historial)
+            # Indexar en RAG para futuras busquedas semanticas
+            incidente_id = int(self._incidentes_chat.get(chat_id, {}).get('id_incidente', 0) or 0)
+            contenido = ' '.join(m['contenido'] for m in historial)
+            self.rag.agregar_conversacion(chat_id, incidente_id, contenido)
         self._historial_conversacion.pop(chat_id, None)
         self._ultima_actividad_chat.pop(chat_id, None)
         self._recordatorio_enviado.discard(chat_id)
@@ -1808,6 +1815,13 @@ class WorkerPeletizacion:
         bloque_features = self.feature_store.construir_bloque_prompt()
         if bloque_features:
             prompt = f"{prompt}\n\n{bloque_features}"
+
+        # RAG: recuperar fallas e incidentes semanticamente similares
+        contexto_rag = self._construir_query_rag(lectura)
+        bloque_rag = self.rag.construir_bloque_rag(contexto_rag)
+        if bloque_rag:
+            prompt = f"{prompt}\n\n{bloque_rag}"
+
         try:
             # Loop agentico con few-shot dinámico desde feedback real del operario.
             # ShadowTester despacha al modo configurado (off / shadow / ab):
@@ -1900,6 +1914,36 @@ class WorkerPeletizacion:
             'recientes_maquina': int(contexto_memoria.get('recientes_maquina', 0)),
             'similares': int(contexto_memoria.get('similares', 0)),
         }
+
+    def _construir_query_rag(self, lectura: dict[str, Any]) -> str:
+        """Construye la query para busqueda semantica en RAG."""
+        partes = []
+        partes.append(f"Maquina {lectura.get('id_maquina', '?')}")
+
+        temp = lectura.get('temp_ema', 0)
+        pres = lectura.get('presion_ema', 0)
+        estado_t = lectura.get('estado_temperatura', '')
+        estado_p = lectura.get('estado_presion', '')
+
+        if estado_t == 'BAJO':
+            partes.append("temperatura baja")
+        elif estado_t == 'ALTO':
+            partes.append("temperatura alta")
+
+        if estado_p == 'BAJO':
+            partes.append("presion baja")
+        elif estado_p == 'ALTO':
+            partes.append("presion alta")
+
+        causa = lectura.get('causa_probable', '')
+        if causa:
+            partes.append(causa)
+
+        variable = lectura.get('variable_principal', '')
+        if variable:
+            partes.append(f"variable afectada: {variable}")
+
+        return '. '.join(partes)
 
     def _registrar_alertas_confirmadas(
         self,

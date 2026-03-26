@@ -40,3 +40,4 @@ requests>=2.31
 # Testing
 # ============================
 pytest>=7.0
+chromadb>=1.5
