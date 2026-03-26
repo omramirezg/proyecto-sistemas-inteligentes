@@ -1046,10 +1046,7 @@ class WorkerPeletizacion:
             chat_id,
             motivo='audio_recibido',
         )
-        await self.telegram.enviar_mensaje_simple(
-            chat_id,
-            "Audio recibido. Interpretando nota de voz con Gemini.",
-        )
+        # Sin mensaje de status — respuesta directa de María
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
         historial = self._construir_bloque_historial(chat_id)
@@ -1191,10 +1188,7 @@ class WorkerPeletizacion:
         texto_operario = evento_texto['texto']
 
         self._pausar_chat_operario(chat_id, motivo='texto_recibido')
-        await self.telegram.enviar_mensaje_simple(
-            chat_id,
-            "Mensaje recibido. Procesando con Gemini.",
-        )
+        # Sin mensaje de status — respuesta directa de María
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
         historial = self._construir_bloque_historial(chat_id)
@@ -1287,10 +1281,7 @@ class WorkerPeletizacion:
         self._ultima_foto_operario[chat_id] = foto_bytes
 
         self._pausar_chat_operario(chat_id, motivo='foto_recibida')
-        await self.telegram.enviar_mensaje_simple(
-            chat_id,
-            "Foto recibida. Analizando imagen con Gemini.",
-        )
+        # Sin mensaje de status — respuesta directa de María
 
         contexto = ConstructorPrompts.contexto_audio_operario(self._ultima_lectura_publicada)
         historial = self._construir_bloque_historial(chat_id)
