@@ -535,7 +535,7 @@ class WorkerPeletizacion:
                 audiencia=audiencia,
             )
             await asyncio.sleep(1)
-            await self.telegram.enviar_imagen(chat_id, imagen_bytes, caption="Panel multimodal de proceso")
+            await self.telegram.enviar_imagen(chat_id, imagen_bytes, caption="")
             await asyncio.sleep(1)
 
     # -----------------------------------------------------------------------
