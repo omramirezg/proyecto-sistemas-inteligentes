@@ -42,7 +42,6 @@ class ConstructorMensajes:
             f"Temp <b>{lectura['temp_ema']:.1f} C</b> ({estado_temperatura}) | "
             f"Pres <b>{lectura['presion_ema']:.1f} PSI</b> ({estado_presion})\n"
             f"Salud <b>{indice_salud}/100</b> ({etiqueta_salud}) | Carga <b>{porcentaje_carga:.1f}%</b>\n"
-            f"<b>Lectura rapida:</b> {resumen_tendencia}\n"
             f"<b>Posible causa:</b> {causa_corta}"
         )
 
