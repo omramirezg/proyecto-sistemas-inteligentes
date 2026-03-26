@@ -1705,13 +1705,57 @@ class WorkerPeletizacion:
 
         self._incidentes_chat.pop(chat_id_origen, None)
 
-        # Botones de feedback opcionales después de la ficha
-        # El operario puede calificar si quiere, si no los presiona no pasa nada
+        # Auto-calificación implícita: Gemini analiza la conversación y califica
         alerta_id = self._ultimo_alerta_id_feedback
-        if alerta_id:
-            await self.telegram.enviar_botones_feedback(chat_id_origen, alerta_id)
+        historial = self._historial_conversacion.get(chat_id_origen, [])
+        if alerta_id and historial:
+            self._auto_calificar_incidente(alerta_id, historial)
 
         return True
+
+    def _auto_calificar_incidente(self, alerta_id: int, historial: list[dict]) -> None:
+        """Analiza la conversación del incidente e infiere si la prescripción fue útil."""
+        try:
+            conversacion = "\n".join(
+                f"{'OPERARIO' if m['rol'] == 'operario' else 'MARIA'}: {m['contenido']}"
+                for m in historial
+            )
+
+            # Heurísticas basadas en la conversación
+            texto_lower = conversacion.lower()
+
+            # Señales positivas: el operario confirmó que la prescripción sirvió
+            positivas = ['funciono', 'sirvio', 'acertaste', 'efectivamente', 'tenias razon',
+                         'eso era', 'correcto', 'gracias', 'excelente', 'resolvio',
+                         'ya quedo', 'ya esta bien', 'se normalizo', 'se estabilizo']
+            # Señales negativas: la prescripción no sirvió
+            negativas = ['no era eso', 'no funciono', 'no sirvio', 'el problema era otro',
+                         'eso no', 'no tiene que ver', 'te equivocaste', 'mal diagnostico']
+            # Señales de mantenimiento
+            mantenimiento = ['llame a mantenimiento', 'vinieron los tecnicos', 'cambiaron',
+                            'repararon', 'reemplazaron', 'grua', 'taller']
+
+            score_positivo = sum(1 for p in positivas if p in texto_lower)
+            score_negativo = sum(1 for n in negativas if n in texto_lower)
+            score_mant = sum(1 for m in mantenimiento if m in texto_lower)
+
+            if score_negativo > score_positivo:
+                feedback = 'FALSO_POSITIVO'
+            elif score_mant > score_positivo:
+                feedback = 'FALLA_MECANICA'
+            else:
+                feedback = 'UTIL'
+
+            ok = self.historial.registrar_feedback(alerta_id, feedback)
+            if ok:
+                logger.info(
+                    "Auto-calificacion del incidente: alerta=%d feedback=%s (pos=%d neg=%d mant=%d)",
+                    alerta_id, feedback, score_positivo, score_negativo, score_mant,
+                )
+            else:
+                logger.warning("No se pudo registrar auto-calificacion para alerta %d", alerta_id)
+        except Exception as e:
+            logger.error("Error en auto-calificacion: %s", e)
 
     def _obtener_chats_gerenciales(self, id_maquina: str) -> list[int]:
         """En esta version el cierre visual se comparte solo al chat del operario."""
