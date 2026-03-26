@@ -253,7 +253,7 @@ class TelegramNotificador(NotificadorBase):
             await bot.send_photo(
                 chat_id=chat_id,
                 photo=imagen_file,
-                caption=caption or "Grafica de monitoreo",
+                caption=caption or "",
             )
             logger.info(
                 "Imagen enviada: chat_id=%d, %.1f KB",
@@ -331,6 +331,8 @@ class TelegramNotificador(NotificadorBase):
                 'ficha_gerencial': [],
                 'explicar_evento': [],
                 'audio_operario': [],
+                'texto_operario': [],
+                'foto_operario': [],
                 'feedback': [],
                 'resolver_operacion': [],
                 'enviar_consulta': [],
@@ -347,6 +349,8 @@ class TelegramNotificador(NotificadorBase):
                 'ficha_gerencial': [],
                 'explicar_evento': [],
                 'audio_operario': [],
+                'texto_operario': [],
+                'foto_operario': [],
                 'feedback': [],
                 'resolver_operacion': [],
                 'enviar_consulta': [],
@@ -363,6 +367,7 @@ class TelegramNotificador(NotificadorBase):
             'foto_operario': [],
             'feedback': [],
             'resolver_operacion': [],
+            'enviar_consulta': [],
         }
         for update in updates:
             self._ultimo_update_id = update.update_id + 1
