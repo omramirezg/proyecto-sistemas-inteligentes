@@ -104,7 +104,11 @@ class WorkerPeletizacion:
         self._subscriber_streaming = None   # Handle del streaming pull activo
 
         signal.signal(signal.SIGINT, self._manejar_shutdown)
-        signal.signal(signal.SIGTERM, self._manejar_shutdown)
+        if hasattr(signal, 'SIGTERM'):
+            try:
+                signal.signal(signal.SIGTERM, self._manejar_shutdown)
+            except OSError:
+                pass  # SIGTERM no soportado en Windows
 
     def _manejar_shutdown(self, signum, frame) -> None:
         logger.info(
@@ -138,15 +142,9 @@ class WorkerPeletizacion:
 
         while self._ejecutando:
             try:
-                asyncio.run(self._procesar_eventos_chat())
-                asyncio.run(self._drenar_escalaciones_agente())
+                asyncio.run(self._ciclo_principal(siguiente_lectura_ts))
                 ahora = time.time()
-                if self._flujo_telemetria_bloqueado():
-                    continue
-                if ahora >= siguiente_lectura_ts:
-                    lectura = self._obtener_siguiente_lectura()
-                    if lectura is not None:
-                        asyncio.run(self._enviar_paquete_minimo(lectura))
+                if ahora >= siguiente_lectura_ts and not self._flujo_telemetria_bloqueado():
                     siguiente_lectura_ts = ahora + self.config.intervalo_simulacion
                     # Detección de deriva cada 100 ciclos (~8 min con intervalo 5s)
                     self._ciclos_sin_deriva += 1
@@ -209,8 +207,8 @@ class WorkerPeletizacion:
             p_max=float(limites['p_max']),
         )
 
+        estado = self.motor.obtener_estado_maquina(self._planta_objetivo, id_maquina)
         clave  = f"{self._planta_objetivo}_{id_maquina}"
-        estado = self.motor._estados.get(clave)
 
         if clave not in self._historial_reciente:
             self._historial_reciente[clave] = []
@@ -754,6 +752,17 @@ class WorkerPeletizacion:
                 )
             except Exception as e:
                 logger.error("Error enviando escalación de agente: %s", e)
+
+    async def _ciclo_principal(self, siguiente_lectura_ts: float) -> None:
+        """Un solo event loop por iteración: chat + escalaciones + telemetría."""
+        await self._procesar_eventos_chat()
+        await self._drenar_escalaciones_agente()
+
+        ahora = time.time()
+        if not self._flujo_telemetria_bloqueado() and ahora >= siguiente_lectura_ts:
+            lectura = self._obtener_siguiente_lectura()
+            if lectura is not None:
+                await self._enviar_paquete_minimo(lectura)
 
     async def _procesar_eventos_chat(self) -> None:
         """Atiende mensajes del operario como conversación natural.

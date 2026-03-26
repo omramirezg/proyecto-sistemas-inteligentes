@@ -187,6 +187,17 @@ class GeneradorPDF:
         )
         return out.sort_values(['desvio', 'alarma'], ascending=False)
 
+    def _insertar_fig(self, pdf, fig, x: float, y: float, w: float) -> None:
+        """Guarda figura como temp PNG, la inserta en el PDF y limpia siempre."""
+        path = self._save_fig(fig)
+        try:
+            pdf.image(path, x=x, y=y, w=w)
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
     def _save_fig(self, fig) -> str:
         temp = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
         temp.close()
@@ -297,9 +308,7 @@ class GeneradorPDF:
         plt.xticks(rotation=30, ha='right')
         fig.patch.set_facecolor('white')
         fig.tight_layout()
-        path = self._save_fig(fig)
-        pdf.image(path, x=16, y=108, w=178)
-        os.remove(path)
+        self._insertar_fig(pdf, fig, x=16, y=108, w=178)
 
     def _pagina_tendencias(self, pdf: ReportePDF, df_operativo: pd.DataFrame) -> None:
         pdf.add_page()
@@ -339,9 +348,7 @@ class GeneradorPDF:
         plt.xticks(rotation=35, ha='right')
         fig.patch.set_facecolor('white')
         fig.tight_layout()
-        path = self._save_fig(fig)
-        pdf.image(path, x=15, y=38, w=180)
-        os.remove(path)
+        self._insertar_fig(pdf, fig, x=15, y=38, w=180)
 
         top_formulas = df_operativo['id_formula'].value_counts().head(5)
         rows = [[str(formula), str(int(total))] for formula, total in top_formulas.items()]
@@ -377,9 +384,7 @@ class GeneradorPDF:
         plt.xticks(rotation=30, ha='right')
         fig.patch.set_facecolor('white')
         fig.tight_layout()
-        path = self._save_fig(fig)
-        pdf.image(path, x=16, y=38, w=178)
-        os.remove(path)
+        self._insertar_fig(pdf, fig, x=16, y=38, w=178)
 
         rows = []
         for _, row in top.iterrows():
@@ -468,9 +473,7 @@ class GeneradorPDF:
         axes[1].grid(True, linestyle='--', alpha=0.35)
         fig.patch.set_facecolor('white')
         fig.tight_layout()
-        path = self._save_fig(fig)
-        pdf.image(path, x=16, y=76, w=178)
-        os.remove(path)
+        self._insertar_fig(pdf, fig, x=16, y=76, w=178)
 
         pdf.set_xy(12, 164)
         pdf.set_font('Helvetica', 'B', 10)

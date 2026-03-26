@@ -180,6 +180,11 @@ class MotorReglas:
         """Genera una clave única para identificar una máquina."""
         return f"{id_planta.strip().zfill(3)}_{id_maquina.strip().zfill(3)}"
 
+    def obtener_estado_maquina(self, id_planta: str, id_maquina: str):
+        """Retorna el estado EMA de una máquina (API pública)."""
+        clave = self._clave_maquina(id_planta, id_maquina)
+        return self._estados.get(clave)
+
     def _obtener_estado(self, clave: str) -> EstadoActualMaquina:
         """Obtiene o crea el estado en memoria de una máquina."""
         if clave not in self._estados:

@@ -45,6 +45,10 @@ class NotificadorBase(ABC):
         ...
 
     @abstractmethod
+    async def enviar_imagen(self, chat_id: int, imagen_bytes: bytes, caption: str = "") -> bool:
+        ...
+
+    @abstractmethod
     async def enviar_pdf(self, chat_id: int, pdf_bytes: bytes, nombre: str) -> bool:
         ...
 
