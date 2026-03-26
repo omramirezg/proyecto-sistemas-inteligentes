@@ -1161,8 +1161,13 @@ class WorkerPeletizacion:
                 )
             return
 
-        # Detectó señal de resolución → NO cerrar aún, pedir detalles
-        if senal_resolucion:
+        # Detectó señal de resolución
+        cierre_completo = str(resultado.get('cierre_completo', 'NO')).strip().upper() == 'SI'
+        if senal_resolucion and cierre_completo:
+            # El operario ya explicó qué hizo → cerrar de una
+            estado_monitoreo = "Monitoreo normal activo."
+        elif senal_resolucion and not cierre_completo:
+            # Solo dijo "ya solucioné" sin explicar → esperar detalles (20s timeout)
             import time as _time
             self._pendiente_cierre[chat_id] = _time.time()
             estado_monitoreo = "Esperando detalle de la accion realizada."
@@ -1195,6 +1200,16 @@ class WorkerPeletizacion:
                 'senal_resolucion': resultado.get('senal_resolucion', 'NO'),
             },
         )
+
+        # Si cierre completo (operario ya explicó), cerrar de una
+        if senal_resolucion and cierre_completo:
+            cierre_ok = await self._enviar_ficha_cierre_incidente(chat_id)
+            if cierre_ok:
+                self._reanudar_chat_operario(chat_id)
+                self._limpiar_historial_chat(chat_id)
+                await self.telegram.enviar_mensaje_simple(
+                    chat_id, "Monitoreo automatico reanudado.",
+                )
 
     async def _procesar_texto_operario(self, evento_texto: dict[str, Any]) -> None:
         """Interpreta un mensaje de texto libre del operario (misma lógica que audio, sin STT)."""

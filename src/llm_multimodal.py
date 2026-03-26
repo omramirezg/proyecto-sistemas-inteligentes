@@ -903,7 +903,8 @@ Formato requerido:
   "resumen_operario": "...",
   "nivel_urgencia": "BAJO | MEDIO | ALTO",
   "respuesta_asistente": "...",
-  "senal_resolucion": "SI | NO"
+  "senal_resolucion": "SI | NO",
+  "cierre_completo": "SI | NO"
 }}
 
 Reglas:
@@ -918,6 +919,7 @@ Reglas:
   Maria debe incorporar el descarte del operario y sugerir la SIGUIENTE accion logica, no repetir lo que ya fue descartado.
   Ejemplo: si el operario dice "el vapor esta bien, el problema es la energia termica", Maria debe responder sobre energia termica, NO sobre vapor.
 - "senal_resolucion" debe ser SI solo si el operario confirma claramente que el problema se soluciono, quedo estable o ya puede reanudarse el monitoreo normal.
+- "cierre_completo" debe ser SI cuando senal_resolucion es SI Y el operario YA explico que hizo para solucionar (ej: "purgue la trampa y quedo solucionado"). Debe ser NO si el operario solo dice que soluciono pero NO explica que hizo (ej: "ya esta solucionado" sin mas detalle). En ese caso Maria debe preguntar que accion realizo.
 - SEGURIDAD: Si el audio NO tiene relacion con la planta, el proceso productivo o el incidente actual,
   responde con intencion "OTRO" y respuesta_asistente: "Ese tema no esta relacionado con la operacion de la planta. Estoy aqui para ayudarte con el proceso productivo y las alertas activas."
   NO respondas preguntas sobre politica, historia, deportes, clima, chistes ni ningun tema ajeno a la planta.
@@ -1004,7 +1006,8 @@ Formato requerido:
   "resumen_operario": "...",
   "nivel_urgencia": "BAJO | MEDIO | ALTO",
   "respuesta_asistente": "...",
-  "senal_resolucion": "SI | NO"
+  "senal_resolucion": "SI | NO",
+  "cierre_completo": "SI | NO"
 }}
 
 Reglas:
@@ -1015,6 +1018,7 @@ Reglas:
   Si el operario descarta una causa, Maria NO debe recomendar revisar esa misma causa.
   Maria debe sugerir la SIGUIENTE accion logica basada en lo que el operario reporta.
 - "senal_resolucion" debe ser SI solo si el operario confirma que el problema se soluciono.
+- "cierre_completo" debe ser SI cuando senal_resolucion es SI Y el operario YA explico que hizo (ej: "purgue la trampa y quedo solucionado"). Debe ser NO si solo dice que soluciono pero NO explica que hizo (ej: "ya esta solucionado"). En ese caso Maria debe preguntar que accion realizo.
 - Responde en espanol.
 - SEGURIDAD: Si el mensaje NO tiene relacion con la planta, el proceso productivo o el incidente actual,
   responde con intencion "OTRO" y en respuesta_asistente rechaza el tema amablemente y redirige:
@@ -1111,10 +1115,12 @@ Formato requerido:
   "resumen_operario": "Resumen de la evidencia visual y su relevancia",
   "nivel_urgencia": "BAJO | MEDIO | ALTO",
   "respuesta_asistente": "Respuesta de Maria basada en lo que ve en la foto, maximo 2 oraciones",
-  "senal_resolucion": "SI | NO"
+  "senal_resolucion": "SI | NO",
+  "cierre_completo": "SI | NO"
 }}
 
 Reglas:
+- "cierre_completo" debe ser SI cuando senal_resolucion es SI Y la foto o caption muestra evidencia de que el problema fue resuelto. NO si solo dice que soluciono sin explicar.
 - Describe lo que VES en la foto, no inventes elementos que no estén.
 - Si la foto está borrosa o no se distingue el equipo, indícalo honestamente.
 - "respuesta_asistente" debe ser coherente con la evidencia visual y el contexto de la alerta.
@@ -1185,6 +1191,7 @@ Reglas:
                 'nivel_urgencia': str(data.get('nivel_urgencia', 'MEDIO')).strip().upper(),
                 'respuesta_asistente': str(data.get('respuesta_asistente', '')).strip(),
                 'senal_resolucion': str(data.get('senal_resolucion', 'NO')).strip().upper(),
+                'cierre_completo': str(data.get('cierre_completo', 'NO')).strip().upper(),
             }
         except Exception:
             return {
@@ -1261,10 +1268,12 @@ Formato requerido:
   "resumen_operario": "Síntesis breve de lo que comunica el operario integrando todos los inputs",
   "nivel_urgencia": "BAJO | MEDIO | ALTO",
   "respuesta_asistente": "Respuesta de María considerando TODA la información recibida (audio + texto + foto). Máximo 3 oraciones. Sé específica con equipos y procedimientos.",
-  "senal_resolucion": "SI | NO"
+  "senal_resolucion": "SI | NO",
+  "cierre_completo": "SI | NO"
 }}
 
 Reglas:
+- "cierre_completo": SI cuando senal_resolucion es SI Y el operario YA explico que hizo. NO si solo dice que soluciono sin explicar.
 - Integra la información de TODOS los inputs en una respuesta coherente.
 - Si hay fotos, describe lo que ves y relaciónalo con el audio/texto.
 - Si hay contradicciones entre inputs, mencionalo y pide aclaración.
