@@ -390,6 +390,7 @@ class WorkerPeletizacion:
             causa_probable=causa_probable,
             pronostico=pronostico['mensaje'],
         )
+        self._ultimo_alerta_id_feedback = alerta_id_feedback
         resumen_alerta = AnalizadorTelemetria.resumir_alertas_confirmadas(lectura['alertas_confirmadas'])
 
         texto_operario = ConstructorMensajes.mensaje_operario(
@@ -531,7 +532,7 @@ class WorkerPeletizacion:
             await self.telegram.enviar_mensaje_con_boton_pdf(
                 chat_id,
                 texto,
-                alerta_id=alerta_id_feedback,
+                alerta_id=None,  # Feedback se pide al cerrar incidente, no en cada alerta
                 audiencia=audiencia,
             )
             await asyncio.sleep(1)
@@ -1688,6 +1689,13 @@ class WorkerPeletizacion:
             )
 
         self._incidentes_chat.pop(chat_id_origen, None)
+
+        # Botones de feedback opcionales después de la ficha
+        # El operario puede calificar si quiere, si no los presiona no pasa nada
+        alerta_id = self._ultimo_alerta_id_feedback
+        if alerta_id:
+            await self.telegram.enviar_botones_feedback(chat_id_origen, alerta_id)
+
         return True
 
     def _obtener_chats_gerenciales(self, id_maquina: str) -> list[int]:

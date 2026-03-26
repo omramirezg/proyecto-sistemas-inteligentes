@@ -239,6 +239,31 @@ class TelegramNotificador(NotificadorBase):
             logger.error("Error enviando boton de consulta: %s", e)
             return False
 
+    async def enviar_botones_feedback(self, chat_id: int, alerta_id: int) -> bool:
+        """Muestra botones de feedback opcionales después de cerrar un incidente."""
+        try:
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+            bot = await self._obtener_bot()
+            teclado = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("Util", callback_data=f"feedback:{alerta_id}:UTIL"),
+                    InlineKeyboardButton("Falso positivo", callback_data=f"feedback:{alerta_id}:FALSO_POSITIVO"),
+                ],
+                [
+                    InlineKeyboardButton("Mantenimiento", callback_data=f"feedback:{alerta_id}:FALLA_MECANICA"),
+                ],
+            ])
+            await bot.send_message(
+                chat_id=chat_id,
+                text="Como calificarias esta alerta? (opcional)",
+                reply_markup=teclado,
+            )
+            return True
+        except Exception as e:
+            logger.error("Error enviando botones de feedback: %s", e)
+            return False
+
     async def enviar_imagen(
         self, chat_id: int, imagen_bytes: bytes, caption: str = ""
     ) -> bool:
