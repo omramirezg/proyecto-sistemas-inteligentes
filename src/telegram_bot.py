@@ -519,6 +519,7 @@ class TelegramNotificador(NotificadorBase):
                 'solicitar ficha gerencial', '/ficha_gerencial', 'ficha gerencial',
                 'explicar evento', '/explicar_evento', 'explicar',
                 '/start', '/help', '/ayuda',
+                '/fallback', '/gemini',
             }
             es_comando = texto_lower in _comandos
 
@@ -551,6 +552,12 @@ class TelegramNotificador(NotificadorBase):
                 chat_id = message.chat_id
                 if chat_id not in eventos['explicar_evento']:
                     eventos['explicar_evento'].append(chat_id)
+            if texto_lower == '/fallback':
+                eventos.setdefault('forzar_fallback', [])
+                eventos['forzar_fallback'].append(message.chat_id)
+            if texto_lower == '/gemini':
+                eventos.setdefault('restaurar_gemini', [])
+                eventos['restaurar_gemini'].append(message.chat_id)
 
         return eventos
 

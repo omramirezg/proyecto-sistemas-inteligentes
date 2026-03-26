@@ -794,6 +794,22 @@ class WorkerPeletizacion:
         for evento_foto in eventos['foto_operario']:
             await self._procesar_foto_operario(evento_foto)
 
+        # Comandos de control: /fallback y /gemini
+        for chat_id in eventos.get('forzar_fallback', []):
+            self.llm.forzar_fallback(True)
+            await self.telegram.enviar_mensaje_simple(
+                chat_id,
+                "Modo fallback activado. Gemma 2B local respondera las proximas prescripciones.",
+            )
+            logger.info("[FALLBACK] Modo Gemma forzado por comando /fallback")
+        for chat_id in eventos.get('restaurar_gemini', []):
+            self.llm.forzar_fallback(False)
+            await self.telegram.enviar_mensaje_simple(
+                chat_id,
+                "Gemini restaurado. Las prescripciones volveran a usar Gemini 2.5 Flash.",
+            )
+            logger.info("[FALLBACK] Gemini restaurado por comando /gemini")
+
         for chat_id, estado in eventos['resolver_operacion']:
             # Ignorar si no hay incidente abierto (botón viejo presionado después de cerrar)
             if chat_id not in self._chats_pausados_operacion:

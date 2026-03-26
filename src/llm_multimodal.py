@@ -625,6 +625,20 @@ class GeminiProvider(LLMProvider):
                 self._TTL_CIRCUITO_ABIERTO_SEG,
             )
 
+    def forzar_fallback(self, activar: bool) -> None:
+        """Fuerza o restaura el circuito para demo.
+        activar=True  → abre el circuito (usa Gemma)
+        activar=False → cierra el circuito (usa Gemini)
+        """
+        if activar:
+            self._fallos_consecutivos_gemini = self._UMBRAL_FALLOS_CIRCUITO + 1
+            self._ts_apertura_circuito = time.time() + 999999  # No expira solo
+            logger.info("[CIRCUITO] Fallback FORZADO por comando. Usando Gemma.")
+        else:
+            self._fallos_consecutivos_gemini = 0
+            self._ts_apertura_circuito = 0.0
+            logger.info("[CIRCUITO] Gemini RESTAURADO por comando.")
+
     def _obtener_gemma(self):
         """
         Lazy init del GemmaLocalProvider.
