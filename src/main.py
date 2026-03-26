@@ -95,6 +95,10 @@ class WorkerPeletizacion:
         # Última foto enviada por el operario por chat — se incluye en llamadas posteriores
         # para que María pueda referenciar la imagen en audios/textos siguientes.
         self._ultima_foto_operario: dict[int, bytes] = {}
+        # Timestamp de última actividad por chat — para timer de inactividad
+        self._ultima_actividad_chat: dict[int, float] = {}
+        self._INACTIVIDAD_SEG = 300  # 5 minutos sin actividad → mostrar botones
+        self._recordatorio_enviado: set[int] = set()  # chats que ya recibieron recordatorio
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -674,6 +678,7 @@ class WorkerPeletizacion:
                 try:
                     asyncio.run(self._procesar_eventos_chat())
                     asyncio.run(self._drenar_escalaciones_agente())
+                    asyncio.run(self._verificar_inactividad_chats())
                     self._drenar_cola_pubsub()
 
                     # Detección de deriva periódica
@@ -756,6 +761,7 @@ class WorkerPeletizacion:
     async def _ciclo_principal(self, siguiente_lectura_ts: float) -> None:
         """Un solo event loop por iteración: chat + escalaciones + telemetría."""
         await self._procesar_eventos_chat()
+        await self._verificar_inactividad_chats()
         await self._drenar_escalaciones_agente()
 
         ahora = time.time()
@@ -1176,10 +1182,8 @@ class WorkerPeletizacion:
                 tipo_evento='espera_confirmacion',
                 descripcion='El sistema queda pausado esperando confirmacion de solucion.',
             )
-            await self.telegram.enviar_confirmacion_solucion(
-                chat_id,
-                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
-            )
+            # No mostramos botones — el operario cierra con texto/audio natural
+            # Si hay inactividad, el timer mostrará los botones
 
     async def _procesar_texto_operario(self, evento_texto: dict[str, Any]) -> None:
         """Interpreta un mensaje de texto libre del operario (misma lógica que audio, sin STT)."""
@@ -1271,11 +1275,7 @@ class WorkerPeletizacion:
                 self._limpiar_historial_chat(chat_id)
                 await self.telegram.enviar_mensaje_simple(
                     chat_id, "Monitoreo automatico reanudado.")
-        else:
-            await self.telegram.enviar_confirmacion_solucion(
-                chat_id,
-                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
-            )
+        # No mostramos botones — el operario cierra con texto/audio natural
 
     async def _procesar_foto_operario(self, evento_foto: dict[str, Any]) -> None:
         """Interpreta una foto del operario usando Gemini multimodal."""
@@ -1370,11 +1370,7 @@ class WorkerPeletizacion:
                 self._reanudar_chat_operario(chat_id)
                 self._limpiar_historial_chat(chat_id)
                 await self.telegram.enviar_mensaje_simple(chat_id, "Monitoreo automatico reanudado.")
-        else:
-            await self.telegram.enviar_confirmacion_solucion(
-                chat_id,
-                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
-            )
+        # No mostramos botones — el operario cierra con texto/audio natural
 
     async def _procesar_multimodal_unificado(self, chat_id: int, inputs: dict) -> None:
         """Procesa múltiples inputs del operario (audio+texto+foto) en UNA llamada a Gemini."""
@@ -1470,14 +1466,13 @@ class WorkerPeletizacion:
             if cierre_ok:
                 self._reanudar_chat_operario(chat_id)
                 await self.telegram.enviar_mensaje_simple(chat_id, "Monitoreo automatico reanudado.")
-        else:
-            await self.telegram.enviar_confirmacion_solucion(
-                chat_id,
-                "Confirma cuando la novedad quede atendida para reanudar los reportes.",
-            )
+        # No mostramos botones — el operario cierra con texto/audio natural
 
     def _registrar_en_historial(self, chat_id: int, rol: str, contenido: str) -> None:
         """Agrega un mensaje al historial de conversación del chat."""
+        import time as _time
+        self._ultima_actividad_chat[chat_id] = _time.time()
+        self._recordatorio_enviado.discard(chat_id)  # Reset recordatorio al haber actividad
         if chat_id not in self._historial_conversacion:
             self._historial_conversacion[chat_id] = []
         self._historial_conversacion[chat_id].append({
@@ -1487,6 +1482,22 @@ class WorkerPeletizacion:
         # Mantener máximo 20 intercambios (10 pares operario-María)
         if len(self._historial_conversacion[chat_id]) > 20:
             self._historial_conversacion[chat_id] = self._historial_conversacion[chat_id][-20:]
+
+    async def _verificar_inactividad_chats(self) -> None:
+        """Si un chat con incidente lleva 5 min sin actividad, muestra botones de confirmacion."""
+        import time as _time
+        ahora = _time.time()
+        for chat_id, ts in list(self._ultima_actividad_chat.items()):
+            if chat_id in self._recordatorio_enviado:
+                continue
+            if chat_id not in self._chats_pausados_operacion:
+                continue
+            if ahora - ts >= self._INACTIVIDAD_SEG:
+                self._recordatorio_enviado.add(chat_id)
+                await self.telegram.enviar_confirmacion_solucion(
+                    chat_id,
+                    "Llevas un rato sin reportar novedades. Si el problema ya se soluciono, confirmalo.",
+                )
 
     def _construir_bloque_historial(self, chat_id: int) -> str:
         """Construye el bloque de historial de conversación para el prompt."""
@@ -1507,6 +1518,9 @@ class WorkerPeletizacion:
         if historial:
             self._persistir_conversacion(chat_id, historial)
         self._historial_conversacion.pop(chat_id, None)
+        self._ultima_actividad_chat.pop(chat_id, None)
+        self._recordatorio_enviado.discard(chat_id)
+        self._ultima_foto_operario.pop(chat_id, None)
 
     def _persistir_conversacion(self, chat_id: int, historial: list[dict]) -> None:
         """Guarda la conversación completa en CSV para RAG/RLHF futuro."""
