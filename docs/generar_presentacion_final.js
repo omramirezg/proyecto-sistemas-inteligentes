@@ -61,7 +61,7 @@ s.addText("SISTEMAS INTELIGENTES", { x: 0.8, y: 0.6, w: 8.4, h: 0.4, fontSize: 1
 s.addText("Sistema de Monitoreo de\nPeletizacion con LLM Multimodal", {
   x: 0.8, y: 1.3, w: 8.4, h: 1.6, fontSize: 36, color: C.white, fontFace: FONT_TITLE, bold: true, lineSpacing: 44,
 });
-s.addText("Prescripciones inteligentes en tiempo real mediante\nGemini 2.5 Flash, RAG, RLHF, Agentic AI y Tool Use", {
+s.addText("Prescripciones inteligentes en tiempo real mediante\nGemini 2.5 Flash, RAG con ChromaDB, Agentic AI y Tool Use", {
   x: 0.8, y: 3.1, w: 8.4, h: 0.8, fontSize: 16, color: C.ice, fontFace: FONT_BODY, italic: true,
 });
 // Stats row
@@ -109,7 +109,7 @@ s.addText(
 
 // Key message
 s.addShape(pptx.ShapeType.rect, { x: 0.5, y: 4.3, w: 9.0, h: 0.6, fill: { color: C.lightGray }, rectRadius: 0.08 });
-s.addText("Objetivo: Convertir telemetria cruda en prescripciones accionables mediante LLM multimodal + RAG + RLHF + Agentic AI", {
+s.addText("Objetivo: Convertir telemetria cruda en prescripciones accionables mediante LLM multimodal + RAG (ChromaDB) + Human-in-the-Loop Feedback + Agentic AI", {
   x: 0.7, y: 4.35, w: 8.6, h: 0.5, fontSize: 13, color: C.navy, fontFace: FONT_BODY, bold: true,
 });
 
@@ -134,7 +134,7 @@ const layers = [
   { n: "2", t: "Motor Reglas", d: "ISA-18.2 + EMA", c: "2C5F2D" },
   { n: "3", t: "Feature Store", d: "Matriz 3x3 + Pearson", c: C.accent },
   { n: "4", t: "RAG", d: "YAML + CSV + Maestros", c: "7B2D8E" },
-  { n: "5", t: "RLHF", d: "Few-shot adaptativo", c: C.orange },
+  { n: "5", t: "Feedback", d: "Few-shot adaptativo", c: C.orange },
   { n: "6", t: "LLM Agentico", d: "Gemini + 7 tools", c: C.red },
   { n: "7", t: "Shadow Mode", d: "A/B testing paralelo", c: "555555" },
   { n: "8", t: "Telegram", d: "Audio+texto+foto+PDF", c: C.navy },
@@ -170,27 +170,27 @@ s.addText(
 addFooter(s);
 
 // ═══════════════════════════════════════════════════════
-// SLIDE 4 — RAG + RLHF + FEATURE STORE
+// SLIDE 4 — RAG + FEEDBACK + FEATURE STORE
 // ═══════════════════════════════════════════════════════
 s = lightSlide(pptx);
 s.addText("3", { x: 0.5, y: 0.3, w: 0.5, h: 0.5, fontSize: 24, color: C.white, fontFace: FONT_TITLE, fill: { color: C.navy }, align: "center", valign: "middle", rectRadius: 0.1 });
-s.addText("Fundamentacion Teorica I: RAG + RLHF + Feature Store", { x: 1.2, y: 0.25, w: 8.3, h: 0.5, fontSize: 22, color: C.navy, fontFace: FONT_TITLE, bold: true });
+s.addText("RAG (ChromaDB) + Human-in-the-Loop Feedback + Feature Store", { x: 1.2, y: 0.25, w: 8.3, h: 0.5, fontSize: 22, color: C.navy, fontFace: FONT_TITLE, bold: true });
 
 // Three columns
 const cols = [
-  { title: "RAG", sub: "(Lecture 5)", color: "7B2D8E", items: [
-    "No entrenamos el modelo",
-    "Conocimiento de planta se RECUPERA de YAML/CSV",
-    "Se INYECTA en el prompt en cada llamada",
-    "20 fallas + 8 SOPs + 17 incidentes",
-    "Se actualiza editando un archivo, no reentrenando",
+  { title: "RAG + ChromaDB", sub: "(Lecture 5)", color: "7B2D8E", items: [
+    "ChromaDB como vector store",
+    "Embeddings all-MiniLM-L6-v2",
+    "Busqueda semantica de fallas e incidentes",
+    "Top 3 fallas + Top 2 incidentes por alerta",
+    "Conversaciones se indexan al cerrar",
   ]},
-  { title: "RLHF Liviano", sub: "(Lecture 5)", color: C.orange, items: [
-    "Operario califica cada prescripcion",
-    "UTIL (1.0) -> few-shot positivo",
-    "FALSO_POSITIVO (0.0) -> antipatron",
-    "Se inyecta en el prompt automaticamente",
-    "Sistema MEJORA con cada interaccion",
+  { title: "Feedback Implicito", sub: "(Human-in-the-Loop)", color: C.orange, items: [
+    "NO es RLHF (no modifica el modelo)",
+    "Auto-califica analizando conversacion",
+    "Prescripciones exitosas -> few-shot",
+    "Prescripciones fallidas -> antipatron",
+    "Prompt optimization con feedback humano",
     ">30% FP en 14 dias -> alerta de deriva",
   ]},
   { title: "Feature Store", sub: "(Ingenieria)", color: C.accent, items: [
@@ -366,7 +366,7 @@ s.addText(
   "Maria recuerda TODO\nlo dicho en el incidente\n\n" +
   "Operario confirma:\n\"Solucionado\"\n\n" +
   "Sistema cierra incidente\ny reanuda monitoreo\n\n" +
-  "Conversacion se\npersiste para RAG\ny RLHF futuro",
+  "Conversacion se\npersiste en ChromaDB\npara RAG futuro",
   { x: 7.5, y: 1.4, w: 2.1, h: 4.6, fontSize: 11, color: C.white, fontFace: FONT_BODY, lineSpacing: 16 }
 );
 
@@ -384,7 +384,7 @@ const concepts = [
   ["Context Engineering (L5)", "Role, tono, formato JSON"],
   ["Few-shot (L4)", "Ejemplos del feedback"],
   ["RAG (L5)", "YAML + CSV inyectado"],
-  ["RLHF (L5)", "Feedback -> few-shot"],
+  ["Feedback (L5)", "Implicito -> few-shot"],
   ["Agentic AI (L7)", "Loop ReAct + 7 tools"],
   ["Tool Use (L7)", "Function Calling"],
   ["Human-in-the-loop (L7)", "Botones Telegram"],
@@ -443,7 +443,7 @@ s.addText("Sistema de Monitoreo de Peletizacion con LLM Multimodal", {
 
 // Summary chips
 const chips = [
-  "RAG + RLHF", "Agentic AI", "Multimodal", "NanoBanana",
+  "RAG + Feedback", "Agentic AI", "Multimodal", "NanoBanana",
   "Feature Store", "ISA-18.2", "Circuit Breaker", "Email SMTP",
 ];
 chips.forEach((chip, i) => {

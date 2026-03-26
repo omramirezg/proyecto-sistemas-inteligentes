@@ -201,7 +201,7 @@ const doc = new Document({
         new TextRun({ text: "Prescripciones inteligentes en tiempo real mediante Gemini 2.5 Flash,", font: "Arial", size: 22, italics: true, color: "555555" }),
       ]}),
       new Paragraph({ alignment: AlignmentType.CENTER, children: [
-        new TextRun({ text: "RAG, RLHF liviano y Agentic AI con Tool Use", font: "Arial", size: 22, italics: true, color: "555555" }),
+        new TextRun({ text: "RAG con ChromaDB, Human-in-the-Loop Feedback y Agentic AI con Tool Use", font: "Arial", size: 22, italics: true, color: "555555" }),
       ]}),
       new Paragraph({ spacing: { before: 800 }, alignment: AlignmentType.CENTER, children: [
         new TextRun({ text: "Integrantes:", font: "Arial", size: 24, bold: true }),
@@ -222,8 +222,8 @@ const doc = new Document({
       p("3. Arquitectura del Pipeline"),
       p("4. Motor de Reglas Determinista (ISA-18.2)"),
       p("5. Feature Store"),
-      p("6. RAG (Retrieval-Augmented Generation)"),
-      p("7. RLHF Liviano (Feedback Loop)"),
+      p("6. RAG (Retrieval-Augmented Generation) con ChromaDB"),
+      p("7. Human-in-the-Loop Feedback con Prompt Optimization"),
       p("8. LLM Multimodal y Loop Agentico"),
       p("9. Shadow Mode / A/B Testing"),
       p("10. Comunicacion Multimodal (Telegram)"),
@@ -365,12 +365,16 @@ const doc = new Document({
       new Paragraph({ children: [new PageBreak()] }),
 
       // ═══════════════════ 6. RAG ═══════════════════
-      heading("6. RAG (Retrieval-Augmented Generation)", HeadingLevel.HEADING_1),
+      heading("6. RAG (Retrieval-Augmented Generation) con ChromaDB", HeadingLevel.HEADING_1),
 
       heading("6.1 Que es", HeadingLevel.HEADING_2),
       p("RAG es un patron de IA donde, en vez de entrenar (fine-tune) el modelo con datos de la empresa, se RECUPERAN los datos relevantes y se INYECTAN en el prompt antes de cada llamada. El modelo no se modifica -- lee el conocimiento en tiempo real y razona sobre el."),
 
-      heading("6.2 Por que RAG y no Fine-tuning", HeadingLevel.HEADING_2),
+      heading("6.2 Implementacion: ChromaDB + Embeddings", HeadingLevel.HEADING_2),
+      p("Implementamos RAG real con ChromaDB como vector store y embeddings all-MiniLM-L6-v2. El sistema indexa 3 colecciones: fallas de planta (20), incidentes historicos (17+), y conversaciones cerradas (crecen con el uso). Antes de cada prescripcion, se buscan semanticamente las fallas e incidentes mas similares a la alerta actual y solo se inyectan los top 3 fallas y top 2 incidentes en el prompt -- no las 20 fallas completas. Las conversaciones cerradas se indexan automaticamente para enriquecer futuras busquedas."),
+      p("Ejemplo: si la alerta dice 'temperatura baja, presion normal en maquina 301', el retriever encuentra F003 (trampa bloqueada) como falla mas similar y el incidente de febrero donde la misma trampa se bloqueo -- no las 17 fallas restantes que no aplican."),
+
+      heading("6.3 Por que RAG y no Fine-tuning", HeadingLevel.HEADING_2),
       new Table({
         width: { size: FULL_W, type: WidthType.DXA },
         columnWidths: [2800, 3280, 3280],
@@ -393,29 +397,31 @@ const doc = new Document({
       bullet("historial_alertas.csv: prescripciones pasadas con calificacion del operario"),
       bullet("historial_conversaciones.csv: conversaciones completas de incidentes cerrados"),
 
-      heading("6.4 Como se inyecta en el prompt", HeadingLevel.HEADING_2),
-      p("Antes de cada llamada a Gemini, el sistema construye un prompt de ~3000 tokens con 5 bloques: bloque fijo (conocimiento de planta, cacheado), bloque de Features Store, bloque few-shot (RLHF), historial de conversacion, y bloque variable (datos de esta alerta especifica). Gemini NUNCA fue entrenado con estos datos -- los lee frescos en cada llamada."),
+      heading("6.5 Como se inyecta en el prompt", HeadingLevel.HEADING_2),
+      p("Antes de cada llamada a Gemini, el sistema: (1) construye una query de busqueda a partir de la alerta actual (maquina, estado de temperatura/presion, causa probable), (2) busca en ChromaDB las fallas e incidentes mas similares via embeddings, (3) inyecta solo los resultados relevantes en el prompt junto con el Feature Store, historial de conversacion y bloque variable. Gemini NUNCA fue entrenado con estos datos -- los lee frescos en cada llamada via busqueda semantica."),
 
       new Paragraph({ children: [new PageBreak()] }),
 
-      // ═══════════════════ 7. RLHF ═══════════════════
-      heading("7. RLHF Liviano (Feedback Loop)", HeadingLevel.HEADING_1),
+      // ═══════════════════ 7. FEEDBACK ═══════════════════
+      heading("7. Human-in-the-Loop Feedback con Prompt Optimization", HeadingLevel.HEADING_1),
 
-      heading("7.1 Que es RLHF", HeadingLevel.HEADING_2),
-      p("RLHF (Reinforcement Learning from Human Feedback) es la tecnica que usan empresas como OpenAI y Anthropic para alinear los LLMs con las preferencias humanas. En su forma completa, requiere entrenar un modelo de recompensa (reward model) y optimizar con PPO (Proximal Policy Optimization). Esto cuesta millones de dolares y requiere GPUs enterprise."),
+      heading("7.1 Que es y que NO es", HeadingLevel.HEADING_2),
+      p("IMPORTANTE: Esto NO es RLHF. RLHF (Reinforcement Learning from Human Feedback) requiere entrenar un Reward Model y modificar los pesos del LLM con PPO. Eso cuesta millones de dolares y GPUs enterprise. Lo que nosotros implementamos es human-in-the-loop feedback con prompt optimization: el feedback del operario modifica el PROMPT, no el modelo."),
 
-      heading("7.2 Nuestra implementacion: RLHF Liviano", HeadingLevel.HEADING_2),
-      p("Nosotros implementamos una version liviana que logra un efecto similar sin modificar el modelo ni requerir GPU:"),
+      heading("7.2 Como funciona", HeadingLevel.HEADING_2),
+      p("Implementamos un ciclo de feedback implicito:"),
 
-      numberItem("El operario califica cada prescripcion con botones en Telegram: Util (1.0), Mantenimiento (0.5), Falso Positivo (0.0)", "numbers3"),
-      numberItem("Las prescripciones calificadas como UTIL se guardan y se inyectan como few-shot examples en el prompt de alertas similares futuras", "numbers3"),
-      numberItem("Las prescripciones calificadas como FALSO_POSITIVO se guardan como antipatrones: el prompt dice explicita mente 'NO hagas esto'", "numbers3"),
-      numberItem("Si la tasa de falsos positivos supera 30% en una ventana de 14 dias, el sistema detecta DERIVA y alerta que los umbrales necesitan recalibracion", "numbers3"),
+      numberItem("Al cerrar un incidente, el sistema analiza TODA la conversacion entre el operario y Maria", "numbers3"),
+      numberItem("Infiere automaticamente si la prescripcion fue util, incorrecta (falso positivo) o requirio mantenimiento, basandose en lo que el operario dijo durante la conversacion", "numbers3"),
+      numberItem("Las prescripciones exitosas se guardan y se inyectan como few-shot examples en prompts futuros de alertas similares", "numbers3"),
+      numberItem("Las prescripciones fallidas se guardan como antipatrones: el prompt dice explicitamente 'NO hagas esto'", "numbers3"),
+      numberItem("Si la tasa de falsos positivos supera 30% en 14 dias, el sistema detecta DERIVA y alerta", "numbers3"),
 
-      heading("7.3 Por que funciona", HeadingLevel.HEADING_2),
-      p("El principio es el mismo que RLHF completo: el modelo recibe senales de recompensa humanas. La diferencia es que en vez de modificar los pesos del modelo (fine-tuning con PPO), modificamos el CONTEXTO del prompt (few-shot injection). El efecto es similar para dominios estrechos como el nuestro: las prescripciones mejoran con cada interaccion del operario."),
+      heading("7.3 Feedback implicito vs explicito", HeadingLevel.HEADING_2),
+      p("El operario NO califica manualmente con botones. El sistema infiere la calidad de la prescripcion del contexto conversacional. Senales como 'efectivamente, eso era el problema' indican prescripcion util. Senales como 'no, el problema era otro' indican falso positivo. Senales como 'llame a mantenimiento y lo repararon' indican falla mecanica. El operario no tiene que hacer nada extra -- el sistema aprende de la conversacion natural."),
 
-      p("Referencia del curso: Lecture 5 discute RLHF/RLAIF como tecnica de alineacion. Nuestra implementacion usa la misma senal de feedback humano pero aplicada via prompt engineering en vez de optimizacion de pesos."),
+      heading("7.4 Por que NO es RLHF", HeadingLevel.HEADING_2),
+      p("En RLHF real: (1) humanos anotan miles de respuestas, (2) se entrena un Reward Model, (3) se usa PPO para modificar los pesos del LLM, (4) el modelo cambia permanentemente. En nuestro caso: (1) el sistema infiere feedback de la conversacion, (2) no hay Reward Model, (3) se modifican los few-shot examples del prompt, (4) el modelo NO cambia. El termino correcto es prompt optimization con human-in-the-loop feedback."),
 
       new Paragraph({ children: [new PageBreak()] }),
 
@@ -662,7 +668,7 @@ const doc = new Document({
       p("La presentacion tiene un limite de 10 minutos y 5 slides. Cada integrante debe dominar su seccion completa y poder responder preguntas del profesor sobre ella. A continuacion la distribucion:"),
 
       pBold(" "),
-      assignBox("BRIAN", [
+      assignBox("BRAYAN", [
         "Seccion 1: Resumen del Proyecto (que problema resuelve, numeros clave)",
         "Seccion 2: Stack Tecnologico (todas las tecnologias y por que cada una)",
         "Seccion 3: Arquitectura del Pipeline (las 8 capas y como se conectan)",
@@ -672,21 +678,21 @@ const doc = new Document({
       p(" "),
       assignBox("OMAR", [
         "Seccion 5: Feature Store (las 4 capas, la matriz 3x3, correlaciones Pearson)",
-        "Seccion 6: RAG (que es, por que no fine-tuning, fuentes de conocimiento)",
-        "Seccion 7: RLHF Liviano (como funciona el feedback loop, few-shot adaptativo)",
-        "Seccion 8: LLM Multimodal + Loop Agentico (que recibe Gemini, las 7 herramientas, por que es un agente real)",
-        "Seccion 13: Decisiones de Ingenieria (por que Gemini, por que no Vector DB, etc.)",
-        "Debe poder explicar: por que RAG y no fine-tuning, por que es un agente real, como funciona RLHF liviano",
+        "Seccion 6: RAG con ChromaDB (vector store, embeddings, busqueda semantica, por que no fine-tuning)",
+        "Seccion 7: Human-in-the-Loop Feedback (feedback implicito, auto-calificacion, few-shot adaptativo, por que NO es RLHF)",
+        "Seccion 8: LLM Multimodal + Loop Agentico (que recibe Gemini, las 7 herramientas, por que es un agente real, sin LangChain)",
+        "Seccion 15: Decisiones de Ingenieria (por que Gemini, por que ChromaDB, etc.)",
+        "Debe poder explicar: por que RAG y no fine-tuning, por que es un agente real, que es feedback implicito",
       ]),
       p(" "),
-      assignBox("ISABELA", [
+      assignBox("LAURA", [
         "Seccion 9: Shadow Mode / A/B Testing (tres modos, ThreadPoolExecutor, recomendacion)",
-        "Seccion 10: Comunicacion Multimodal Telegram (bidireccional, memoria de conversacion)",
+        "Seccion 10: Comunicacion Multimodal Telegram (bidireccional, memoria de conversacion, cierre natural)",
         "Seccion 11: NanoBanana - Generacion de fichas visuales con IA (como funciona, por que es importante)",
         "Seccion 12: Correo al supervisor (flujo de cierre completo, por que correo ademas de Telegram)",
-        "Seccion 13: Resiliencia (Circuit Breaker, Gemma 2B, retry con backoff)",
+        "Seccion 13: Resiliencia (Circuit Breaker, Gemma 2B, comandos /fallback y /gemini)",
         "Seccion 14: Seguridad (prompt injection, limites hardcodeados)",
-        "Seccion 16: Conceptos del Curso (la tabla de 18 conceptos implementados)",
+        "Seccion 16: Conceptos del Curso (tabla de conceptos implementados)",
         "Debe poder explicar: que pasa si Gemini se cae, como genera las fichas visuales, flujo completo de cierre de incidente",
       ]),
 
