@@ -3,6 +3,7 @@ Pipeline minimo de Telegram para validar texto, imagen y audio.
 """
 
 import json
+import os
 import sys
 import signal
 import asyncio
@@ -91,8 +92,9 @@ class WorkerPeletizacion:
         # para que María recuerde lo dicho dentro del mismo incidente.
         # Se limpia al cerrar el incidente (botón "Sí, solucionado").
         self._historial_conversacion: dict[int, list[dict[str, str]]] = {}
-        # (Buffer y botón de consulta eliminados — ahora cada mensaje se procesa al instante
-        #  con el historial completo de conversación como contexto)
+        # Última foto enviada por el operario por chat — se incluye en llamadas posteriores
+        # para que María pueda referenciar la imagen en audios/textos siguientes.
+        self._ultima_foto_operario: dict[int, bytes] = {}
 
         # Pub/Sub — cola thread-safe entre el callback del subscriber y el loop async
         import queue as _queue_mod
@@ -1212,15 +1214,8 @@ class WorkerPeletizacion:
         if not incidente_id:
             incidente_id = self.memoria_incidentes.abrir_incidente(
                 chat_id=chat_id,
-                id_planta=str(lectura.get('id_planta', '001')),
-                id_maquina=str(lectura.get('id_maquina', '')),
-                id_formula=str(lectura.get('id_formula', '')),
-                codigo_producto=str(lectura.get('codigo_producto', '')),
-                descripcion='El operario envio un mensaje de texto para actualizar el incidente.',
-                metadata={
-                    'intencion': resultado.get('intencion', 'OTRO'),
-                    'texto_operario': texto_operario[:200],
-                },
+                lectura=lectura,
+                resumen_alerta=f"Texto del operario: {texto_operario[:200]}",
             )
             self._incidentes_chat[chat_id] = {
                 'id_incidente': incidente_id,
@@ -1279,6 +1274,9 @@ class WorkerPeletizacion:
         foto_bytes = evento_foto['foto_bytes']
         caption = evento_foto.get('caption', '')
 
+        # Guardar foto para incluirla en llamadas futuras (audio/texto)
+        self._ultima_foto_operario[chat_id] = foto_bytes
+
         self._pausar_chat_operario(chat_id, motivo='foto_recibida')
         await self.telegram.enviar_mensaje_simple(
             chat_id,
@@ -1316,15 +1314,8 @@ class WorkerPeletizacion:
         if not incidente_id:
             incidente_id = self.memoria_incidentes.abrir_incidente(
                 chat_id=chat_id,
-                id_planta=str(lectura.get('id_planta', '001')),
-                id_maquina=str(lectura.get('id_maquina', '')),
-                id_formula=str(lectura.get('id_formula', '')),
-                codigo_producto=str(lectura.get('codigo_producto', '')),
-                descripcion='El operario envio una foto para evidencia visual del incidente.',
-                metadata={
-                    'intencion': resultado.get('intencion', 'OTRO'),
-                    'caption': caption[:200],
-                },
+                lectura=lectura,
+                resumen_alerta=f"Foto del operario. Caption: {caption[:200]}",
             )
             self._incidentes_chat[chat_id] = {
                 'id_incidente': incidente_id,
@@ -1421,12 +1412,8 @@ class WorkerPeletizacion:
         if not incidente_id:
             incidente_id = self.memoria_incidentes.abrir_incidente(
                 chat_id=chat_id,
-                id_planta=str(lectura.get('id_planta', '001')),
-                id_maquina=str(lectura.get('id_maquina', '')),
-                id_formula=str(lectura.get('id_formula', '')),
-                codigo_producto=str(lectura.get('codigo_producto', '')),
-                descripcion=f'Operario envió {len(audios_raw)} audio(s), {len(textos_raw)} texto(s), {len(fotos_raw)} foto(s).',
-                metadata={'intencion': resultado.get('intencion', 'OTRO')},
+                lectura=lectura,
+                resumen_alerta=f'Input multimodal: {len(audios_raw)} audio(s), {len(textos_raw)} texto(s), {len(fotos_raw)} foto(s).',
             )
             self._incidentes_chat[chat_id] = {
                 'id_incidente': incidente_id,

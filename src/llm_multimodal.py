@@ -874,6 +874,7 @@ Tu diagnóstico debe incluir:
         audio_bytes: bytes,
         mime_type: str,
         prompt_texto: str,
+        foto_contexto: bytes | None = None,
     ) -> dict:
         """Interpreta directamente un audio del operario con Gemini."""
         try:
@@ -917,6 +918,9 @@ Reglas:
   Maria debe incorporar el descarte del operario y sugerir la SIGUIENTE accion logica, no repetir lo que ya fue descartado.
   Ejemplo: si el operario dice "el vapor esta bien, el problema es la energia termica", Maria debe responder sobre energia termica, NO sobre vapor.
 - "senal_resolucion" debe ser SI solo si el operario confirma claramente que el problema se soluciono, quedo estable o ya puede reanudarse el monitoreo normal.
+- SEGURIDAD: Si el audio NO tiene relacion con la planta, el proceso productivo o el incidente actual,
+  responde con intencion "OTRO" y respuesta_asistente: "Ese tema no esta relacionado con la operacion de la planta. Estoy aqui para ayudarte con el proceso productivo y las alertas activas."
+  NO respondas preguntas sobre politica, historia, deportes, clima, chistes ni ningun tema ajeno a la planta.
 """
 
             # Retry con backoff exponencial ante rate limit (429)
@@ -1012,6 +1016,9 @@ Reglas:
   Maria debe sugerir la SIGUIENTE accion logica basada en lo que el operario reporta.
 - "senal_resolucion" debe ser SI solo si el operario confirma que el problema se soluciono.
 - Responde en espanol.
+- SEGURIDAD: Si el mensaje NO tiene relacion con la planta, el proceso productivo o el incidente actual,
+  responde con intencion "OTRO" y respuesta_asistente: "Ese tema no esta relacionado con la operacion de la planta. Estoy aqui para ayudarte con el proceso productivo y las alertas activas."
+  NO respondas preguntas sobre politica, historia, deportes, clima, chistes ni ningun tema ajeno a la planta.
 """
 
             _max_reintentos = 3
