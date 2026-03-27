@@ -467,7 +467,10 @@ class WorkerPeletizacion:
             imagen_bytes=imagen_bytes,
             video_bytes=video_bytes,
         )
-        # Mensaje limpio sin texto de ayuda — el operario ya sabe cómo interactuar
+        # Agregar prescripción inteligente de María al mensaje del operario
+        if prescripcion_maria and prescripcion_maria != diagnostico_operativo:
+            texto_operario += f"\n\n<b>Maria:</b>\n{prescripcion_maria}"
+
         texto_gerencial = ConstructorMensajes.mensaje_gerencial(
             lectura=lectura,
             estado_global=estado_global,
